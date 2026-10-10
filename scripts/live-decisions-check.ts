@@ -1,19 +1,13 @@
 // Sprint 2 acceptance: the full policy path against the LIVE sandbox.
 // Run: npm run live-decisions
 import { DecisionService } from "../src/lib/decisions.ts";
+import { DEMO_MANDATE } from "../src/lib/decisions-singleton.ts";
 import { Ledger } from "../src/lib/ledger.ts";
 import { join } from "node:path";
 
-const ledger = new Ledger(join(process.cwd(), "data", "agentguard.db"));
-const mandate = {
-  monthly_budget_cents: 1500000,
-  per_txn_cap_cents: 100000,
-  vendor_allowlist: ["acme.com", "globex.com"],
-  category_limits_cents: { snacks: 50000, ads: 200000 },
-  velocity_max_per_hour: 10,
-  approval_threshold_cents: 50000,
-};
-const svc = new DecisionService(ledger, mandate);
+// scratch DB by default so rehearsal runs don't pollute the demo ledger
+const ledger = new Ledger(join(process.cwd(), "data", process.env.LIVE_CHECK_DB ?? "live-check.db"));
+const svc = new DecisionService(ledger, DEMO_MANDATE);
 const card = {
   number: process.env.TEST_CARD_NUMBER ?? "4111111111111111",
   expiry: "2028-12",

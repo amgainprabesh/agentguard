@@ -1,3 +1,5 @@
+import type { Decision } from "./ledger.ts";
+
 export interface Mandate {
   monthly_budget_cents: number;
   per_txn_cap_cents: number;
@@ -18,8 +20,6 @@ export interface MonthContext {
   category_spend_cents: number;
   txns_last_hour: number;
 }
-
-export type Decision = "ALLOW" | "DENY" | "ESCALATE";
 
 export interface PolicyResult {
   decision: Decision;

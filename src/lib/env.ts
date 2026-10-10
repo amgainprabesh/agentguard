@@ -1,5 +1,5 @@
 // Shortcut: reads process.env lazily per call; Next.js auto-loads .env.local so no
-// dotenv needed in dev. Upgrade to zod validation when env vars exceed ~10.
+// dotenv needed in dev. Upgrade to zod validation if env handling grows past this.
 function required(name: string): string {
   const v = process.env[name];
   if (!v) throw new Error(`Missing required env var: ${name} — copy .env.example to .env.local`);
@@ -15,5 +15,5 @@ export const env = {
       ? "https://api-m.paypal.com"
       : "https://api-m.sandbox.paypal.com",
   openrouterApiKey: () => required("OPENROUTER_API_KEY"),
-  openrouterModel: () => process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b:free",
+  openrouterModel: () => process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3.5-lightning:free",
 };

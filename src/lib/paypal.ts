@@ -34,7 +34,6 @@ async function getToken(): Promise<string> {
 export async function createOrderWithCard(input: {
   amount_cents: number;
   card: { number: string; expiry: string; security_code: string; name: string };
-  currency?: string;
 }): Promise<{ order_id: string; auth_id: string; status: string }> {
   const tok = await getToken();
   const res = await fetch(`${env.paypalBaseUrl()}/v2/checkout/orders`, {
@@ -50,7 +49,7 @@ export async function createOrderWithCard(input: {
       purchase_units: [
         {
           amount: {
-            currency_code: input.currency ?? "USD",
+            currency_code: "USD",
             value: (input.amount_cents / 100).toFixed(2),
           },
         },
@@ -86,14 +85,13 @@ export async function createOrderWithCard(input: {
 export async function capturePartial(
   auth_id: string,
   amount_cents: number,
-  currency = "USD",
 ): Promise<{ id: string; status: string }> {
   const tok = await getToken();
   const res = await fetch(`${env.paypalBaseUrl()}/v2/payments/authorizations/${auth_id}/capture`, {
     method: "POST",
     headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" },
     body: JSON.stringify({
-      amount: { currency_code: currency, value: (amount_cents / 100).toFixed(2) },
+      amount: { currency_code: "USD", value: (amount_cents / 100).toFixed(2) },
     }),
   });
   if (!res.ok) throw new Error(`PayPal capturePartial failed: ${res.status} ${await res.text()}`);

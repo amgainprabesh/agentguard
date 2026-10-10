@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 // one shared instance so all routes see the same pending approvals
 // shortcut: demo mandate is hardcoded; Sprint 3 reads it from stored config
-const DEMO_MANDATE = {
+export const DEMO_MANDATE = {
   monthly_budget_cents: 1500000,
   per_txn_cap_cents: 100000,
   vendor_allowlist: ["acme.com", "globex.com"],
