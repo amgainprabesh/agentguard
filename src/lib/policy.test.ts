@@ -62,6 +62,20 @@ test("would exceed category limit → DENY", () => {
   assert.ok(d.reasons.some((r) => /category/i.test(r)));
 });
 
+test("category match is case-insensitive — 'Snacks' hits the 'snacks' limit", () => {
+  for (const cat of ["snacks", "Snacks", "SNACKS", " snacks "]) {
+    const d = evaluate({ vendor: "acme.com", amount_cents: 6000, category: cat }, mandate, ctx({ category_spend_cents: 45000 }));
+    assert.equal(d.decision, "DENY", `${cat} must hit the snacks limit`);
+  }
+  // a mandate whose key has different case also matches
+  const upperMandate = { ...mandate, category_limits_cents: { SNACKS: 50000 } };
+  const d2 = evaluate({ vendor: "acme.com", amount_cents: 6000, category: "snacks" }, upperMandate, ctx({ category_spend_cents: 45000 }));
+  assert.equal(d2.decision, "DENY", "mandate key case must not matter either");
+  // an unknown category stays unbounded (no key => no limit)
+  const d3 = evaluate({ vendor: "acme.com", amount_cents: 6000, category: "cloud" }, mandate, ctx({ category_spend_cents: 45000 }));
+  assert.equal(d3.decision, "ALLOW", "unlisted category is unbounded");
+});
+
 test("velocity exceeded → DENY", () => {
   const d = evaluate(
     { vendor: "acme.com", amount_cents: 4200, category: "snacks" },

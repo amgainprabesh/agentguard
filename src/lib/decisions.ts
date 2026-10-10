@@ -62,18 +62,21 @@ export class DecisionService {
     const hourAgo = Date.now() - 3_600_000;
     let month_spend_cents = 0;
     let txns_last_hour = 0;
+    // lowercase the key: the LLM's category word varies ("Snacks"/"snacks") —
+    // an exact-match map would split one category's spend across two buckets.
+    const catKey = category.trim().toLowerCase();
     const byCategory = new Map<string, number>();
     for (const r of this.ledger.all()) {
       if (r.action !== "ALLOW") continue;
       const t = Date.parse(r.created_at);
       if (r.created_at.slice(0, 7) === monthPrefix) {
         month_spend_cents += r.amount_cents;
-        const cat = r.category ?? "uncategorized";
+        const cat = (r.category ?? "uncategorized").trim().toLowerCase();
         byCategory.set(cat, (byCategory.get(cat) ?? 0) + r.amount_cents);
       }
       if (t >= hourAgo) txns_last_hour++;
     }
-    return { month_spend_cents, category_spend_cents: byCategory.get(category) ?? 0, txns_last_hour };
+    return { month_spend_cents, category_spend_cents: byCategory.get(catKey) ?? 0, txns_last_hour };
   }
 
   async decide(request: string, card: CardInput): Promise<DecisionResult> {

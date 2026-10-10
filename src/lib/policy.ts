@@ -60,10 +60,17 @@ export function evaluate(intent: SpendIntent, mandate: Mandate, ctx: MonthContex
   if (!allow.has(vendor)) {
     violations.push(`vendor ${vendor} is not on the approved list`);
   }
-  const cat_limit = mandate.category_limits_cents[intent.category];
-  if (cat_limit !== undefined && ctx.category_spend_cents + intent.amount_cents > cat_limit) {
+  // case-insensitive category match: the LLM's category word is free text and
+  // the mandate's keys are typed by hand — "Cloud", "cloud", "CLOUD" must hit
+  // the same limit. An unmatched category is unbounded (no key => no limit),
+  // which is why the mandate editor lets you add categories.
+  const category = intent.category.trim().toLowerCase();
+  const catEntry = Object.entries(mandate.category_limits_cents).find(
+    ([k]) => k.trim().toLowerCase() === category,
+  );
+  if (catEntry !== undefined && ctx.category_spend_cents + intent.amount_cents > catEntry[1]) {
     violations.push(
-      `would exceed the ${intent.category} category limit of $${(cat_limit / 100).toFixed(2)}`,
+      `would exceed the ${intent.category} category limit of $${(catEntry[1] / 100).toFixed(2)}`,
     );
   }
   if (ctx.txns_last_hour >= mandate.velocity_max_per_hour) {
