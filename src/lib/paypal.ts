@@ -1,5 +1,9 @@
 import { env } from "./env.ts";
 
+// 15s cap per PayPal call: a hung TCP connect would otherwise leave an
+// authorization in flight with no way to recover the decide() path.
+const TIMEOUT_MS = 15_000;
+
 interface Token {
   value: string;
   expires_at: number;
@@ -21,6 +25,7 @@ async function getToken(): Promise<string> {
       "content-type": "application/x-www-form-urlencoded",
     },
     body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`PayPal token failed: ${res.status} ${await res.text()}`);
   const data = (await res.json()) as { access_token: string; expires_in: number };
@@ -69,6 +74,7 @@ export async function createOrderWithCard(input: {
           },
         },
       },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     }),
   });
   if (!res.ok) throw new Error(`PayPal createOrderWithCard failed: ${res.status} ${await res.text()}`);
@@ -93,6 +99,7 @@ export async function capturePartial(
     body: JSON.stringify({
       amount: { currency_code: "USD", value: (amount_cents / 100).toFixed(2) },
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`PayPal capturePartial failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as { id: string; status: string };

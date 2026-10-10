@@ -73,3 +73,18 @@ test("clamps absurd amounts from the LLM (untrusted arithmetic)", async () => {
     restore();
   }
 });
+
+test("empty choices / null content fails clean instead of a TypeError", async () => {
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const { chat } = await import("./llm.ts");
+  const original = globalThis.fetch;
+  try {
+    for (const body of [{ choices: [] }, { choices: [{ message: {} }] }, {}]) {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      await assert.rejects(() => chat([{ role: "user", content: "x" }]), /no content|failed/i);
+    }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
