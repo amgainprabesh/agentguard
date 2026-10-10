@@ -3,7 +3,8 @@ import { chat } from "./llm.ts";
 // Extracts the JSON object from an LLM response that may be wrapped in thinking
 // prose ("Here's a thinking process: ... {json} ..."). Takes the substring from
 // the first "{" to the matching last "}"; throws if none found.
-export function extractJson(raw: string): string {
+// Not exported: only extractIntent consumes it, and it has no external callers.
+function extractJson(raw: string): string {
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start === -1 || end <= start) {
