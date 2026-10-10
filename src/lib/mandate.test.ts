@@ -32,6 +32,18 @@ test("update rejects invalid mandates (trust boundary)", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("update rejects zero limits — velocity 0 would deny every request", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-m6-"));
+  const store = new MandateStore(join(dir, "mandate.json"));
+  // an empty number input in the editor parses as 0 — the demo would freeze
+  // with every request denied and no visible cause
+  assert.throws(() => store.update({ ...DEFAULT_MANDATE, velocity_max_per_hour: 0 }), /at least 1/);
+  assert.throws(() => store.update({ ...DEFAULT_MANDATE, monthly_budget_cents: 0 }), /at least 1/);
+  assert.throws(() => store.update({ ...DEFAULT_MANDATE, per_txn_cap_cents: 0 }), /at least 1/);
+  assert.throws(() => store.update({ ...DEFAULT_MANDATE, approval_threshold_cents: 0 }), /at least 1/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("corrupted mandate.json falls back to the default instead of crashing boot", () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-m4-"));
   const path = join(dir, "mandate.json");

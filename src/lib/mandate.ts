@@ -14,9 +14,10 @@ export const DEFAULT_MANDATE: Mandate = {
 // table is YAGNI until there are real users.
 function validate(m: unknown): Mandate {
   const o = m as Record<string, unknown>;
-  const num = (k: keyof Mandate) => {
+  const num = (k: keyof Mandate, opts: { min?: number } = {}) => {
     const v = o[k];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0) throw new Error(`mandate.${k} must be a non-negative number`);
+    if (opts.min !== undefined && v < opts.min) throw new Error(`mandate.${k} must be at least ${opts.min}`);
     return v;
   };
   if (!Array.isArray(o.vendor_allowlist) || !o.vendor_allowlist.every((s) => typeof s === "string")) {
@@ -27,10 +28,12 @@ function validate(m: unknown): Mandate {
     throw new Error("mandate.category_limits_cents must be an object of numbers");
   }
   return {
-    monthly_budget_cents: num("monthly_budget_cents"),
-    per_txn_cap_cents: num("per_txn_cap_cents"),
-    velocity_max_per_hour: num("velocity_max_per_hour"),
-    approval_threshold_cents: num("approval_threshold_cents"),
+    monthly_budget_cents: num("monthly_budget_cents", { min: 1 }),
+    per_txn_cap_cents: num("per_txn_cap_cents", { min: 1 }),
+    // velocity 0 would deny every request (an empty number input in the editor
+    // parses as 0 — the demo would freeze with no visible cause)
+    velocity_max_per_hour: num("velocity_max_per_hour", { min: 1 }),
+    approval_threshold_cents: num("approval_threshold_cents", { min: 1 }),
     vendor_allowlist: o.vendor_allowlist as string[],
     category_limits_cents: cats as Record<string, number>,
   };
