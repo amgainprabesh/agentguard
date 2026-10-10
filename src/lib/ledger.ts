@@ -33,6 +33,10 @@ export class Ledger {
     `);
     // shortcut: one-shot additive migration for pre-Sprint-3 dbs (data/agentguard.db); reseed the demo db to drop this
     try { this.db.exec("ALTER TABLE ledger ADD COLUMN category TEXT"); } catch {}
+    // monthContext() filters on action + created_at every decide(); without an
+    // index that is a full table scan per decision. Created after the migration
+    // so pre-existing dbs get it too (CREATE INDEX IF NOT EXISTS is idempotent).
+    this.db.exec("CREATE INDEX IF NOT EXISTS idx_ledger_action_created ON ledger (action, created_at)");
   }
 
   private hashOf(rec: { action: Decision; amount_cents: number; reason: string; prev_hash: string }): string {

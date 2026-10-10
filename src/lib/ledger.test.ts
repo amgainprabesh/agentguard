@@ -55,3 +55,18 @@ test("tamper() breaks the chain at exactly that row", () => {
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("action+created_at index exists (monthContext aggregation is not a full scan)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-idx-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  const idx = ledger.db
+    .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_ledger_action_created'")
+    .get() as { name: string } | undefined;
+  assert.equal(idx?.name, "idx_ledger_action_created", "index must be created for fresh dbs");
+  // and it must be idempotent — a second Ledger on the same path must not throw
+  const again = new Ledger(join(dir, "t.db"));
+  assert.deepEqual(again.verifyChain(), { ok: true, brokenAt: null });
+  ledger.db.close();
+  again.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
