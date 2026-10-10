@@ -70,3 +70,15 @@ test("action+created_at index exists (monthContext aggregation is not a full sca
   again.db.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("WAL journal mode is set (crash-safe appends, non-blocking readers)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-wal-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  const mode = ledger.db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
+  assert.equal(mode.journal_mode.toLowerCase(), "wal", "ledger must run in WAL mode");
+  // durability must stay FULL — WAL is about crash recovery, not trading it away
+  const sync = ledger.db.prepare("PRAGMA synchronous").get() as { synchronous: number };
+  assert.ok(sync.synchronous >= 2, "synchronous must stay FULL (2) or EXTRA (3)");
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});

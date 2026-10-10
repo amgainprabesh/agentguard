@@ -19,6 +19,11 @@ export class Ledger {
 
   constructor(path: string) {
     this.db = new DatabaseSync(path);
+    // WAL: a crash mid-append can't corrupt the ledger the way the rollback
+    // journal can, and readers don't block the writer (the audit view polls
+    // /api/ledger while a decision is appending). No durability loss —
+    // synchronous stays at FULL (2), only crash-recovery gets safer.
+    this.db.exec("PRAGMA journal_mode=WAL");
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS ledger (
         seq INTEGER PRIMARY KEY AUTOINCREMENT,
