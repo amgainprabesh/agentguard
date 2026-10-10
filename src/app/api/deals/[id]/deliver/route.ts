@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Escrow } from "@/lib/escrow";
-import { Ledger } from "@/lib/ledger";
-import { join } from "node:path";
-
-// shortcut: one Escrow per route module; deal state is per-route (Sprint 2: shared singleton)
-const ledger = new Ledger(join(process.cwd(), "data", "agentguard.db"));
-const escrow = new Escrow(ledger);
+import { escrow } from "@/lib/escrow-singleton";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

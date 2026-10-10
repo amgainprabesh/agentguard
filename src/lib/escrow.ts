@@ -26,8 +26,11 @@ export class Escrow {
     card: { number: string; expiry: string; security_code: string; name: string };
     rubric: { criterion: string; weight: number }[];
   }): Promise<EscrowDealView & { auth_id: string }> {
+    if (!Number.isInteger(input.amount_cents) || input.amount_cents <= 0) {
+      throw new Error("amount_cents must be a positive integer");
+    }
     const id = crypto.randomUUID();
-    const deal = new Deal({ id, amount_cents: input.amount_cents });
+    const deal = new Deal({ id, amount_cents: input.amount_cents, rubric: input.rubric });
     this.deals.set(id, deal);
 
     const { order_id, auth_id } = await createOrderWithCard({
@@ -39,7 +42,7 @@ export class Escrow {
     this.ledger.append({
       action: "ALLOW",
       amount_cents: input.amount_cents,
-      reason: `deal ${id} authorized, order ${order_id}, auth ${auth_id}`,
+      reason: `deal ${id} authorized, order ${order_id}, auth ${auth_id}, rubric ${input.rubric.map((r) => r.criterion).join(",")}`,
     });
     return { id, state: deal.state, auth_id, score: null };
   }
@@ -58,8 +61,7 @@ export class Escrow {
 
   async settle(id: string): Promise<EscrowDealView & { capture_cents: number; void_cents: number }> {
     const deal = this.get(id);
-    const rubric = [{ criterion: "quality", weight: 1 }];
-    const grade = await gradeStub(deal.submission ?? "", rubric);
+    const grade = await gradeStub(deal.submission ?? "", deal.init.rubric ?? []);
     deal.grade(grade.score);
 
     const total = deal.init.amount_cents;
@@ -67,23 +69,29 @@ export class Escrow {
 
     if (!deal.auth_id) throw new Error("deal has no authorization to settle against");
 
-    // capture the earned share
-    const cap = await capturePartial(deal.auth_id, capture_cents);
-    this.ledger.append({
-      action: "ALLOW",
-      amount_cents: capture_cents,
-      reason: `deal ${id} captured score ${grade.score}, capture ${cap.id}`,
-    });
-
-    // void the remainder (skip void when capture took the full amount — void of a
-    // fully-captured authorization 422s)
-    if (void_cents > 0) {
-      await voidAuthorization(deal.auth_id);
+    // capture the earned share, then void the rest; any failure marks the deal
+    // FAILED so it can never half-settle twice
+    try {
+      const cap = await capturePartial(deal.auth_id, capture_cents);
       this.ledger.append({
-        action: "DENY",
-        amount_cents: void_cents,
-        reason: `deal ${id} voided remainder`,
+        action: "ALLOW",
+        amount_cents: capture_cents,
+        reason: `deal ${id} captured score ${grade.score}, capture ${cap.id}`,
       });
+
+      // skip void when capture took the full amount — void of a fully-captured
+      // authorization 422s
+      if (void_cents > 0) {
+        await voidAuthorization(deal.auth_id);
+        this.ledger.append({
+          action: "DENY",
+          amount_cents: void_cents,
+          reason: `deal ${id} voided remainder`,
+        });
+      }
+    } catch (e) {
+      deal.fail(`settlement failed: ${e}`);
+      throw e;
     }
 
     deal.settle();

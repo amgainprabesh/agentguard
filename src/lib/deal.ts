@@ -16,6 +16,7 @@ export function canTransition(from: DealState, to: DealState): boolean {
 export interface DealInit {
   id: string;
   amount_cents: number;
+  rubric?: { criterion: string; weight: number }[];
 }
 
 export class Deal {

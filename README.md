@@ -15,4 +15,4 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
 
 ## Status
 
-Sprint 0 complete: scaffold, ledger, PayPal client, LLM client. Policy engine lands in Sprint 1.
+Sprints 0–1 complete: scaffold, hash-chained ledger, escrow spine (live PayPal sandbox verified — authorize, partial capture, void). Grader is a stub (fixed score 75); the real LLM grader + mandate editor land in Sprint 2.

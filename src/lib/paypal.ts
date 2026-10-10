@@ -28,27 +28,6 @@ async function getToken(): Promise<string> {
   return token.value;
 }
 
-export async function createOrder(input: { amount_cents: number; currency?: string }): Promise<{ id: string; status: string }> {
-  const tok = await getToken();
-  const res = await fetch(`${env.paypalBaseUrl()}/v2/checkout/orders`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" },
-    body: JSON.stringify({
-      intent: "AUTHORIZE", // funds held, not taken — the whole escrow thesis
-      purchase_units: [
-        {
-          amount: {
-            currency_code: input.currency ?? "USD",
-            value: (input.amount_cents / 100).toFixed(2),
-          },
-        },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`PayPal createOrder failed: ${res.status} ${await res.text()}`);
-  return (await res.json()) as { id: string; status: string };
-}
-
 // Create order + embedded authorization in one call, using a card payment_source.
 // The authorization id comes back INSIDE the create response — there is no separate
 // authorize step for card orders (the authorize endpoint 422s with ORDER_ALREADY_AUTHORIZED).

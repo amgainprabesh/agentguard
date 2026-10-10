@@ -11,32 +11,6 @@ const { Escrow } = await import("./escrow.ts");
 const { Ledger } = await import("./ledger.ts");
 const { resetPayPalToken } = await import("./paypal.ts");
 
-function mockPayPal() {
-  mock.method(globalThis, "fetch", async (url: any) => {
-    const u = String(url);
-    if (u.endsWith("/v1/oauth2/token")) {
-      return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
-        status: 200, headers: { "content-type": "application/json" },
-      });
-    }
-    if (u.endsWith("/v2/checkout/orders")) {
-      return new Response(JSON.stringify({
-        id: "ORD1", status: "COMPLETED",
-        purchase_units: [{ payments: { authorizations: [{ id: "AUTH1", status: "CREATED" }] } }],
-      }), { status: 201, headers: { "content-type": "application/json" } });
-    }
-    if (u.endsWith("/capture")) {
-      return new Response(JSON.stringify({ id: "CAP1", status: "COMPLETED" }), {
-        status: 201, headers: { "content-type": "application/json" },
-      });
-    }
-    if (u.endsWith("/void")) {
-      return new Response(null, { status: 204 });
-    }
-    throw new Error("unexpected fetch: " + u);
-  });
-}
-
 test("full escrow: create → deliver → settle captures score share, voids rest", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-e-"));
   const ledger = new Ledger(join(dir, "t.db"));
@@ -90,6 +64,62 @@ test("money invariant: captured + voided == authorized, always", async () => {
   await escrow.deliver(deal.id, "work");
   const settled = await escrow.settle(deal.id);
   assert.equal(settled.capture_cents + settled.void_cents, 7777);
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
+test("createDeal rejects non-positive or non-integer amounts", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-e3-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  const escrow = new Escrow(ledger);
+  const card = { number: "4111111111111111", expiry: "2028-12", security_code: "123", name: "T" };
+  await assert.rejects(
+    () => escrow.createDeal({ amount_cents: 0, card, rubric: [] }),
+    /positive integer/,
+  );
+  await assert.rejects(
+    () => escrow.createDeal({ amount_cents: 10.5, card, rubric: [] }),
+    /positive integer/,
+  );
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("capture failure marks the deal FAILED (no half-settle)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-e4-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mock.method(globalThis, "fetch", async (url: any) => {
+    const u = String(url);
+    if (u.endsWith("/v1/oauth2/token")) {
+      return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (u.endsWith("/v2/checkout/orders")) {
+      return new Response(JSON.stringify({
+        id: "ORD1", status: "COMPLETED",
+        purchase_units: [{ payments: { authorizations: [{ id: "AUTH1", status: "CREATED" }] } }],
+      }), { status: 201, headers: { "content-type": "application/json" } });
+    }
+    if (u.endsWith("/capture")) {
+      return new Response(JSON.stringify({ error: "paypal is down" }), { status: 500 });
+    }
+    throw new Error("unexpected fetch: " + u);
+  });
+
+  const escrow = new Escrow(ledger);
+  const deal = await escrow.createDeal({
+    amount_cents: 1000,
+    card: { number: "4111111111111111", expiry: "2028-12", security_code: "123", name: "T" },
+    rubric: [{ criterion: "quality", weight: 1 }],
+  });
+  await escrow.deliver(deal.id, "work");
+  await assert.rejects(() => escrow.settle(deal.id), /capturePartial failed: 500/);
+  // deal is now FAILED: settle again must throw
+  await assert.rejects(() => escrow.settle(deal.id));
 
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });
