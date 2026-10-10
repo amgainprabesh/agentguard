@@ -10,7 +10,6 @@
     "test": "node --test src/lib/*.test.ts app/**/*.test.ts --test-force-exit",
     "typecheck": "tsc --noEmit",
     "live-check:paypal": "node --experimental-strip-types --env-file=.env.local scripts/live-paypal-check.ts",
-    "live-e2e": "node --experimental-strip-types --env-file=.env.local scripts/live-e2e-check.ts",
     "live-decisions": "node --experimental-strip-types --env-file=.env.local scripts/live-decisions-check.ts"
   },
   "dependencies": {

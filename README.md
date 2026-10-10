@@ -15,4 +15,4 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
 
 ## Status
 
-Sprints 0–1 complete: scaffold, hash-chained ledger, escrow spine (live PayPal sandbox verified — authorize, real LLM grading, partial capture, void). The mandate editor and policy rule engine land in Sprint 2.
+Sprints 0–2 complete: hash-chained audit ledger, policy engine (six rules: budget, per-txn cap, vendor allowlist, category limits, velocity, approval threshold), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. Sprint 3 adds the mandate editor UI, decision dashboard, and auditor chain view.
