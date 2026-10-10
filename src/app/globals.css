@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --color-allow: oklch(0.72 0.17 152);
+  --color-deny: oklch(0.65 0.2 25);
+  --color-escalate: oklch(0.78 0.15 85);
+}
+
+html,
+body {
+  @apply bg-neutral-950 text-neutral-100 font-sans antialiased;
+}
