@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 process.env.PAYPAL_CLIENT_ID = "test-id";
 process.env.PAYPAL_SECRET = "test-secret";
+process.env.OPENROUTER_API_KEY = "test-key";
 
 const { Escrow } = await import("./escrow.ts");
 const { Ledger } = await import("./ledger.ts");
@@ -91,10 +92,17 @@ test("capture failure marks the deal FAILED (no half-settle)", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-e4-"));
   const ledger = new Ledger(join(dir, "t.db"));
   resetPayPalToken();
-  mock.method(globalThis, "fetch", async (url: any) => {
+  // grade 90 so capture of 9000 < 10000 exercises both capture and void paths;
+  // the LLM returns a valid grade, then the CAPTURE call fails with 500
+  globalThis.fetch = (async (url: any) => {
     const u = String(url);
     if (u.endsWith("/v1/oauth2/token")) {
       return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (u.includes("openrouter.ai")) {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: 90, breakdown: [] }) } }] }), {
         status: 200, headers: { "content-type": "application/json" },
       });
     }
@@ -108,7 +116,7 @@ test("capture failure marks the deal FAILED (no half-settle)", async () => {
       return new Response(JSON.stringify({ error: "paypal is down" }), { status: 500 });
     }
     throw new Error("unexpected fetch: " + u);
-  });
+  }) as typeof fetch;
 
   const escrow = new Escrow(ledger);
   const deal = await escrow.createDeal({
@@ -130,6 +138,11 @@ function mockPayPalFetch(url: any): Response {
   const u = String(url);
   if (u.endsWith("/v1/oauth2/token")) {
     return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+  }
+  if (u.includes("openrouter.ai")) {
+    return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: 75, breakdown: [] }) } }] }), {
       status: 200, headers: { "content-type": "application/json" },
     });
   }

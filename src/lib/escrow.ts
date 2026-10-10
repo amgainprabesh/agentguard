@@ -1,7 +1,7 @@
 import { Deal } from "./deal.ts";
 import { Ledger } from "./ledger.ts";
 import { createOrderWithCard, capturePartial, voidAuthorization } from "./paypal.ts";
-import { gradeStub } from "./grader.ts";
+import { gradeSubmission } from "./grader.ts";
 import { splitForScore } from "./money.ts";
 
 export interface EscrowDealView {
@@ -61,7 +61,7 @@ export class Escrow {
 
   async settle(id: string): Promise<EscrowDealView & { capture_cents: number; void_cents: number }> {
     const deal = this.get(id);
-    const grade = await gradeStub(deal.submission ?? "", deal.init.rubric ?? []);
+    const grade = await gradeSubmission(deal.submission ?? "", deal.init.rubric ?? []);
     deal.grade(grade.score);
 
     const total = deal.init.amount_cents;

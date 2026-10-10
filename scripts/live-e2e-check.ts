@@ -29,7 +29,10 @@ console.log("3. settled:", JSON.stringify(settled));
 if (settled.capture_cents + settled.void_cents !== 10000) {
   throw new Error("MONEY INVARIANT VIOLATED");
 }
-if (settled.capture_cents !== 7500) {
-  throw new Error(`expected 7500 captured at score 75, got ${settled.capture_cents}`);
+// score comes from the live LLM — assert the split matches whatever it returned,
+// not a hardcoded number
+const expected = Math.round((10000 * settled.score!) / 100);
+if (settled.capture_cents !== expected) {
+  throw new Error(`capture split wrong for score ${settled.score}: got ${settled.capture_cents}, want ${expected}`);
 }
 console.log("PASS: sprint 1 vertical slice green against live sandbox");
