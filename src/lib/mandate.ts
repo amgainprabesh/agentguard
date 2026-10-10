@@ -1,5 +1,5 @@
 import type { Mandate } from "./policy.ts";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
 
 export const DEFAULT_MANDATE: Mandate = {
   monthly_budget_cents: 1500000,
@@ -41,12 +41,25 @@ export class MandateStore {
   private readonly path: string;
   constructor(path: string) {
     this.path = path;
-    this.current = existsSync(path) ? validate(JSON.parse(readFileSync(path, "utf8"))) : DEFAULT_MANDATE;
+    // A corrupted mandate.json (interrupted write, manual edit) must not brick
+    // the app: fall back to the default mandate and let the editor re-save.
+    if (existsSync(path)) {
+      try {
+        this.current = validate(JSON.parse(readFileSync(path, "utf8")));
+        return;
+      } catch (e) {
+        console.error(`mandate store: ${path} invalid (${e}) — using DEFAULT_MANDATE`);
+      }
+    }
+    this.current = DEFAULT_MANDATE;
   }
   get(): Mandate { return this.current; }
   update(next: unknown): Mandate {
     const validated = validate(next);
-    writeFileSync(this.path, JSON.stringify(validated, null, 2));
+    // write-then-swap so a failed write never leaves a half-saved file
+    const tmp = `${this.path}.tmp`;
+    writeFileSync(tmp, JSON.stringify(validated, null, 2));
+    renameSync(tmp, this.path);
     this.current = validated;
     return validated;
   }
