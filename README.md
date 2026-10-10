@@ -19,6 +19,22 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
 DENY (PayPal never touched) → ALLOW (real capture) → ESCALATE → approve (real capture) →
 verifies the hash chain across every row. Needs real creds in `.env.local`.
 
+After the tamper demo on `/audit`, the live demo ledger's chain stays broken
+(`brokenAt: 3`) — that is the point of the demo. To restore it for a fresh demo run:
+`npm run repair-ledger`.
+
+## Validation (trust boundary)
+
+`POST /api/decide` and `POST /api/approvals/[id]/approve` validate before any external call:
+
+- `request` must be a non-empty string (else 400, no LLM call).
+- `card` must pass `validateCard()` in `src/lib/decisions.ts`: number 13–19 digits,
+  expiry `YYYY-MM`, security code 3–4 digits, non-empty name ≤100 chars (else 400,
+  no LLM/PayPal call, no ledger row).
+
+A bad card therefore never spends an LLM token or a PayPal call, and never
+appears in the audit ledger.
+
 ## API
 
 | Method | Route | What it does |

@@ -9,7 +9,8 @@
     "start": "next start",
     "test": "node --test src/lib/*.test.ts app/**/*.test.ts --test-force-exit",
     "typecheck": "tsc --noEmit",
-    "live-decisions": "node --experimental-strip-types --env-file=.env.local scripts/live-decisions-check.ts"
+    "live-decisions": "node --experimental-strip-types --env-file=.env.local scripts/live-decisions-check.ts",
+    "repair-ledger": "node --experimental-strip-types scripts/repair-ledger.ts"
   },
   "dependencies": {
     "next": "15.4.6",
