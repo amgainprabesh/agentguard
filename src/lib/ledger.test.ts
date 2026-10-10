@@ -33,3 +33,25 @@ test("verifyChain detects a tampered row", () => {
   l.db.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("category column persists and does not break the chain", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-cat-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  const rec = ledger.append({ action: "ALLOW", amount_cents: 4200, reason: "allowed acme.com snacks", category: "snacks" });
+  assert.equal(rec.category, "snacks");
+  assert.equal(ledger.all()[0].category, "snacks");
+  assert.deepEqual(ledger.verifyChain(), { ok: true, brokenAt: null });
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("tamper() breaks the chain at exactly that row", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-tamper-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  ledger.append({ action: "ALLOW", amount_cents: 4200, reason: "row one", category: "snacks" });
+  ledger.append({ action: "DENY", amount_cents: 1000, reason: "row two", category: "ads" });
+  ledger.tamper(1);
+  assert.deepEqual(ledger.verifyChain(), { ok: false, brokenAt: 1 });
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
