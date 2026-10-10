@@ -21,7 +21,7 @@ const mandate = {
   approval_threshold_cents: 50000,
 };
 
-function mockFetch(llmIntent: object, opts: { captureStatus?: number } = {}) {
+function mockFetch(llmIntent: object, opts: { captureStatus?: number; captureCounter?: { n: number } } = {}) {
   mock.method(globalThis, "fetch", async (url: any) => {
     const u = String(url);
     if (u.includes("openrouter.ai")) {
@@ -48,12 +48,18 @@ function mockFetch(llmIntent: object, opts: { captureStatus?: number } = {}) {
     }
     if (u.endsWith("/capture")) {
       const s = opts.captureStatus ?? 201;
-      return s === 201
-        ? new Response(JSON.stringify({ id: "CAP1", status: "COMPLETED" }), {
-            status: 201,
-            headers: { "content-type": "application/json" },
-          })
-        : new Response(JSON.stringify({ error: "declined" }), { status: s });
+      if (s !== 201) return new Response(JSON.stringify({ error: "declined" }), { status: s });
+      if (opts.captureCounter) {
+        opts.captureCounter.n++;
+        return new Response(JSON.stringify({ id: "CAP" + opts.captureCounter.n, status: "COMPLETED" }), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ id: "CAP1", status: "COMPLETED" }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
     }
     throw new Error("unexpected fetch: " + u);
   });
@@ -201,40 +207,8 @@ test("double-approve throws and never captures twice", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-d7-"));
   const ledger = new Ledger(join(dir, "t.db"));
   resetPayPalToken();
-  let capture_calls = 0;
-  mock.method(globalThis, "fetch", async (url: any) => {
-    const u = String(url);
-    if (u.includes("openrouter.ai")) {
-      return new Response(
-        JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ...intentOk, amount_cents: 50000 }) } }] }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
-    }
-    if (u.endsWith("/v1/oauth2/token")) {
-      return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-    if (u.endsWith("/v2/checkout/orders")) {
-      return new Response(
-        JSON.stringify({
-          id: "ORD1",
-          status: "COMPLETED",
-          purchase_units: [{ payments: { authorizations: [{ id: "AUTH1", status: "CREATED" }] } }],
-        }),
-        { status: 201, headers: { "content-type": "application/json" } },
-      );
-    }
-    if (u.endsWith("/capture")) {
-      capture_calls++;
-      return new Response(JSON.stringify({ id: "CAP" + capture_calls, status: "COMPLETED" }), {
-        status: 201,
-        headers: { "content-type": "application/json" },
-      });
-    }
-    throw new Error("unexpected fetch: " + u);
-  });
+  const captureCounter = { n: 0 };
+  mockFetch({ ...intentOk, amount_cents: 50000 }, { captureCounter });
 
   const svc = new DecisionService(ledger, mandate);
   const esc = await svc.decide("buy $500 of snacks from acme.com", card);
@@ -243,7 +217,7 @@ test("double-approve throws and never captures twice", async () => {
 
   // second approve of the same id: throws, and does NOT hit PayPal again
   await assert.rejects(() => svc.approve(esc.approval_id!, card), /not found/);
-  assert.equal(capture_calls, 1, "exactly one capture for one approval");
+  assert.equal(captureCounter.n, 1, "exactly one capture for one approval");
 
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });
