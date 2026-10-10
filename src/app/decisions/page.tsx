@@ -16,6 +16,7 @@ export default function DecisionsPage() {
   const [result, setResult] = useState<Decision | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
     fetch("/api/approvals").then((r) => r.json()).then(setPending);
@@ -29,24 +30,38 @@ export default function DecisionsPage() {
 
   async function submit() {
     setError("");
-    const res = await fetch("/api/decide", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ request, card }),
-    });
-    if (!res.ok) { setError(`Rejected: ${(await res.json()).error}`); return; }
-    setResult(await res.json());
-    refresh();
+    // guard against a runaway click-spam filling the ledger and tripping velocity
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/decide", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ request, card }),
+      });
+      if (!res.ok) { setError(`Rejected: ${(await res.json()).error}`); return; }
+      setResult(await res.json());
+      refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function act(id: string, verb: "approve" | "reject") {
-    const res = await fetch(`/api/approvals/${id}/${verb}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ card }),
-    });
-    if (!res.ok) setError(`Rejected: ${(await res.json()).error}`);
-    refresh();
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/approvals/${id}/${verb}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ card }),
+      });
+      if (!res.ok) { setError(`Rejected: ${(await res.json()).error}`); refresh(); return; }
+      if (verb === "approve") setResult(await res.json()); // show the ALLOW result + capture id
+      refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -57,7 +72,7 @@ export default function DecisionsPage() {
         <label className={labelCls}>Spend request (plain English)
           <textarea className={inputCls} rows={2} value={request} onChange={(e) => setRequest(e.target.value)} />
         </label>
-        <button onClick={submit} className="self-start rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-950">Run decision</button>
+        <button onClick={submit} disabled={busy} className="self-start rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50">{busy ? "Running…" : "Run decision"}</button>
         {error && <p className="text-sm text-deny">{error}</p>}
       </div>
 
@@ -87,8 +102,8 @@ export default function DecisionsPage() {
               <p className="text-xs text-neutral-500">{p.reasons[0]}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => act(p.id, "approve")} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800">Approve</button>
-              <button onClick={() => act(p.id, "reject")} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800">Reject</button>
+              <button onClick={() => act(p.id, "approve")} disabled={busy} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800 disabled:opacity-50">Approve</button>
+              <button onClick={() => act(p.id, "reject")} disabled={busy} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800 disabled:opacity-50">Reject</button>
             </div>
           </div>
         ))}
