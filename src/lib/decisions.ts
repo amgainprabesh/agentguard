@@ -13,14 +13,36 @@ export interface CardInput {
 // Trust boundary: card data comes from an untrusted JSON body. Validate shape
 // here so a malformed card fails fast with a clear message instead of a cryptic
 // PayPal/LLM error. Sandbox-only app — no real cards expected.
+function luhnValid(digits: string): boolean {
+  let sum = 0;
+  let alt = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let d = digits.charCodeAt(i) - 48;
+    if (alt) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+
 export function validateCard(input: unknown): CardInput {
   const c = input as Record<string, unknown> | null | undefined;
   if (typeof c !== "object" || c === null) throw new Error("card must be an object");
   const digits = typeof c.number === "string" ? c.number.replace(/\D/g, "") : "";
   if (digits.length < 13 || digits.length > 19) throw new Error("card.number must be 13-19 digits");
+  // Luhn checksum: a typo'd test card (4111…1112) passes every shape check but
+  // PayPal rejects it with an opaque INVALID_RESOURCE_ID — catch it here instead.
+  if (!luhnValid(digits)) throw new Error("card.number failed the Luhn checksum");
   if (typeof c.expiry !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(c.expiry)) {
     throw new Error("card.expiry must be YYYY-MM");
   }
+  // expired card: PayPal declines with an opaque error; reject with a clear message
+  const [expYear, expMonth] = c.expiry.split("-").map(Number);
+  const expiryEnd = new Date(Date.UTC(expYear, expMonth, 1)).getTime(); // first ms after the card's last valid month
+  if (expiryEnd <= Date.now()) throw new Error("card.expiry is in the past");
   if (typeof c.security_code !== "string" || !/^\d{3,4}$/.test(c.security_code)) {
     throw new Error("card.security_code must be 3-4 digits");
   }

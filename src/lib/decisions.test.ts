@@ -335,6 +335,17 @@ test("validateCard: accepts a valid card, rejects garbage at the trust boundary"
   }
 });
 
+test("validateCard: Luhn checksum and expiry-in-the-past are rejected", () => {
+  // typo'd but shape-valid: passes length, fails checksum
+  assert.throws(() => validateCard({ ...card, number: "4111111111111112" }), /Luhn/);
+  // expired card (2020 was years ago)
+  assert.throws(() => validateCard({ ...card, expiry: "2020-01" }), /in the past/);
+  // this month is still valid — the boundary is the first ms AFTER the last valid month
+  const now = new Date();
+  const thisMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  assert.equal(validateCard({ ...card, expiry: thisMonth }).expiry, thisMonth, "current month is valid");
+});
+
 test("validateCard: decide() rejects a bad card before any LLM/PayPal call", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-vc-"));
   const ledger = new Ledger(join(dir, "t.db"));
