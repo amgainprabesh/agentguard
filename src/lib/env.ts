@@ -6,10 +6,22 @@ function required(name: string): string {
   return v;
 }
 
+// This app is a sandbox demo: the UI hardcodes a test card and the ledger is a
+// local file. Pointing it at the live API would attempt REAL charges with a test
+// card. "live" is therefore not a supported mode — a stray PAYPAL_ENV=live in
+// the environment fails closed to sandbox instead of moving real money.
+// (PayPal's live mode also needs different credentials, which would 401 first —
+// but failing closed is the safer default for a demo.)
+const LIVE_MODE_SUPPORTED = false;
+
 export const env = {
   paypalClientId: () => required("PAYPAL_CLIENT_ID"),
   paypalSecret: () => required("PAYPAL_SECRET"),
-  paypalEnv: () => (process.env.PAYPAL_ENV === "live" ? "live" : "sandbox"),
+  paypalEnv: () => {
+    const v = process.env.PAYPAL_ENV;
+    if (v === "live" && LIVE_MODE_SUPPORTED) return "live";
+    return "sandbox";
+  },
   paypalBaseUrl: () =>
     env.paypalEnv() === "live"
       ? "https://api-m.paypal.com"
