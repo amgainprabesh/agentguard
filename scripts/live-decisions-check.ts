@@ -25,7 +25,14 @@ const allowed = await svc.decide("buy $42 of snacks from acme.com", card);
 console.log("2. ALLOW:", allowed.decision, "| capture:", allowed.capture_id);
 if (allowed.decision !== "ALLOW" || !allowed.capture_id) throw new Error("ALLOW path wrong");
 
-// 3. ESCALATE — over threshold, parked
+// 3. ESCALATE — over threshold, parked. Fresh mandate so step 2's capture
+// (aggregated this month) doesn't cascade into a budget/category DENY here.
+const wideMandate = {
+  ...DEFAULT_MANDATE,
+  monthly_budget_cents: 1_000_000,
+  category_limits_cents: {},
+};
+svc.setMandate(wideMandate);
 const escalated = await svc.decide("buy $500 of snacks from acme.com", card);
 console.log("3. ESCALATE:", escalated.decision, "| approval:", escalated.approval_id);
 if (escalated.decision !== "ESCALATE" || !escalated.approval_id) throw new Error("ESCALATE path wrong");
