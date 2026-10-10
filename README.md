@@ -31,13 +31,22 @@ clears the ledger and restarts seq at 1.
 
 `POST /api/decide` and `POST /api/approvals/[id]/approve` validate before any external call:
 
-- `request` must be a non-empty string (else 400, no LLM call).
-- `card` must pass `validateCard()` in `src/lib/decisions.ts`: number 13–19 digits,
-  expiry `YYYY-MM`, security code 3–4 digits, non-empty name ≤100 chars (else 400,
-  no LLM/PayPal call, no ledger row).
+- `request` must be a non-empty string, ≤2,000 characters (else 400, no LLM call).
+- `card` must pass `validateCard()` in `src/lib/decisions.ts`: number 13–19 digits
+  **with a valid Luhn checksum**, expiry `YYYY-MM` **not in the past**, security code
+  3–4 digits, non-empty name ≤100 chars (else 400, no LLM/PayPal call, no ledger row).
 
 A bad card therefore never spends an LLM token or a PayPal call, and never
 appears in the audit ledger.
+
+## Maintenance scripts
+
+| Script | What it does |
+|---|---|
+| `npm run live-decisions` | Full policy path against the live PayPal sandbox (DENY → ALLOW → ESCALATE → approve → chain verify) |
+| `npm run repair-ledger` | Restores the demo ledger after the tamper demo (re-hashes the chain forward) |
+| `npm run reset-demo` | Clears the demo ledger and restarts seq at 1 — run before every demo |
+| `scripts/audit-ledger.ts` | Independent ledger audit: recomputes the chain without reusing `verifyChain()`, flags seq gaps / duplicate hashes / invalid actions / non-positive amounts. Run: `node --experimental-strip-types scripts/audit-ledger.ts` |
 
 ## API
 
@@ -81,3 +90,11 @@ can at worst produce a DENY.
 ## Status
 
 Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo.
+
+44 tests, `npm run typecheck` and `npm run build` clean.
+
+## Notes for demo day
+
+- Run `npm run reset-demo` first — a rehearsal leaves rows that trip the velocity rule.
+- Each decision costs one LLM call: expect ~15–40s on the free model (measured median ~15s). A paid model would cut it to ~1s.
+- Don't run `npm run build` while `npm run dev` is serving from the same `.next/` — the production artifacts break the dev server (`Cannot find module './chunks/vendor-chunks/next.js'`). Use one or the other.
