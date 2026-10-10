@@ -8,6 +8,12 @@ export async function POST(req: NextRequest) {
     if (typeof request !== "string" || !request.trim()) {
       return NextResponse.json({ error: "request must be a non-empty string" }, { status: 400 });
     }
+    // cap the prompt: the whole string is sent to the LLM — an unbounded body
+    // burns tokens and blocks the decide() path. 2,000 chars is ~10x any real
+    // spend request.
+    if (request.length > 2_000) {
+      return NextResponse.json({ error: "request must be 2,000 characters or fewer" }, { status: 400 });
+    }
     const d = await decisions.decide(request, body?.card);
     return NextResponse.json(d, { status: 201 });
   } catch (e) {
