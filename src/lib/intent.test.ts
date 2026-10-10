@@ -63,3 +63,13 @@ test("extracts JSON wrapped in thinking prose (lightning model does this)", asyn
     restore();
   }
 });
+
+test("clamps absurd amounts from the LLM (untrusted arithmetic)", async () => {
+  const restore = mockLlm(JSON.stringify({ vendor: "acme.com", amount_cents: 999_999_999_999, category: "snacks" }));
+  try {
+    const r = await extractIntent("buy everything from acme.com");
+    assert.equal(r.amount_cents, 100_000_000, "clamped to the ceiling");
+  } finally {
+    restore();
+  }
+});

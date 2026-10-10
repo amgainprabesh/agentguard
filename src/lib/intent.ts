@@ -52,7 +52,9 @@ export async function extractIntent(
 
   return {
     vendor: parsed.vendor,
-    amount_cents: amount,
+    // clamp: the LLM's arithmetic is untrusted — an absurd amount (prompt injection,
+    // misread "5 million") would flow into the ledger and the DENY reason string
+    amount_cents: Math.min(amount, 100_000_000),
     category: typeof parsed.category === "string" ? parsed.category : "uncategorized",
   };
 }

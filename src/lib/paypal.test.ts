@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 process.env.PAYPAL_CLIENT_ID = "test-id";
 process.env.PAYPAL_SECRET = "test-secret";
 
-const { createOrderWithCard, capturePartial, voidAuthorization, resetPayPalToken } = await import("./paypal.ts");
+const { createOrderWithCard, capturePartial, resetPayPalToken } = await import("./paypal.ts");
 
 test("createOrderWithCard extracts the embedded authorization from the create response", async () => {
   resetPayPalToken();
@@ -57,24 +57,5 @@ test("capturePartial posts partial amount to the authorization capture endpoint"
   assert.equal(cap.id, "CAP1");
   assert.equal(captured.url, "https://api-m.sandbox.paypal.com/v2/payments/authorizations/AUTH123/capture");
   assert.equal(captured.body.amount.value, "4.00");
-  mock.reset();
-});
-
-test("voidAuthorization treats 204 empty body as success", async () => {
-  resetPayPalToken();
-  let void_url = "";
-  mock.method(globalThis, "fetch", async (url: any) => {
-    const u = String(url);
-    if (u.endsWith("/v1/oauth2/token")) {
-      return new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), {
-        status: 200, headers: { "content-type": "application/json" },
-      });
-    }
-    void_url = u;
-    return new Response(null, { status: 204 });
-  });
-  const result = await voidAuthorization("AUTH123");
-  assert.equal(result, true, "204 = voided");
-  assert.equal(void_url, "https://api-m.sandbox.paypal.com/v2/payments/authorizations/AUTH123/void");
   mock.reset();
 });

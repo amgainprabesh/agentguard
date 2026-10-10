@@ -196,3 +196,56 @@ test("capture failure on ALLOW marks the record failed, no silent success", asyn
   rmSync(dir, { recursive: true, force: true });
   mock.reset();
 });
+
+test("double-approve throws and never captures twice", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-d7-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  let capture_calls = 0;
+  mock.method(globalThis, "fetch", async (url: any) => {
+    const u = String(url);
+    if (u.includes("openrouter.ai")) {
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: JSON.stringify({ ...intentOk, amount_cents: 50000 }) } }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }
+    if (u.endsWith("/v1/oauth2/token")) {
+      return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    if (u.endsWith("/v2/checkout/orders")) {
+      return new Response(
+        JSON.stringify({
+          id: "ORD1",
+          status: "COMPLETED",
+          purchase_units: [{ payments: { authorizations: [{ id: "AUTH1", status: "CREATED" }] } }],
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      );
+    }
+    if (u.endsWith("/capture")) {
+      capture_calls++;
+      return new Response(JSON.stringify({ id: "CAP" + capture_calls, status: "COMPLETED" }), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error("unexpected fetch: " + u);
+  });
+
+  const svc = new DecisionService(ledger, mandate);
+  const esc = await svc.decide("buy $500 of snacks from acme.com", card);
+  const first = await svc.approve(esc.approval_id!, card);
+  assert.equal(first.capture_id, "CAP1");
+
+  // second approve of the same id: throws, and does NOT hit PayPal again
+  await assert.rejects(() => svc.approve(esc.approval_id!, card), /not found/);
+  assert.equal(capture_calls, 1, "exactly one capture for one approval");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});

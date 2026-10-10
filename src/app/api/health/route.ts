@@ -6,6 +6,6 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     paypal_env: process.env.PAYPAL_ENV === "live" ? "live" : "sandbox",
-    llm_model: process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b:free",
+    llm_model: process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3.5-lightning:free",
   });
 }

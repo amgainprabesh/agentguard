@@ -99,15 +99,3 @@ export async function capturePartial(
   if (!res.ok) throw new Error(`PayPal capturePartial failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as { id: string; status: string };
 }
-
-// Void returns 204 with an EMPTY body — do not JSON.parse it.
-export async function voidAuthorization(auth_id: string): Promise<boolean> {
-  const tok = await getToken();
-  const res = await fetch(`${env.paypalBaseUrl()}/v2/payments/authorizations/${auth_id}/void`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" },
-  });
-  if (res.status === 204) return true;
-  if (!res.ok) throw new Error(`PayPal voidAuthorization failed: ${res.status} ${await res.text()}`);
-  return true;
-}
