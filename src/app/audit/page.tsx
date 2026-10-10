@@ -30,7 +30,7 @@ export default function AuditPage() {
       <h1 className="text-2xl font-semibold">Auditor view</h1>
 
       <div className="flex items-center gap-4">
-        <p className="text-sm">
+        <p role="status" aria-live="polite" className="text-sm">
           Chain:{" "}
           {view ? (
             view.chain.ok

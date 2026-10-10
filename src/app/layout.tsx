@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AgentGuard",
-  description: "Spend policy control plane for AI purchasing agents",
+  title: "AgentGuard — spend policy for AI purchasing agents",
+  description:
+    "Policy is code, not prompt: every AI-agent purchase passes a deterministic spend policy before money moves, and every decision lands in a hash-chained audit ledger.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

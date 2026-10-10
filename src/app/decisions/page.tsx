@@ -72,12 +72,13 @@ export default function DecisionsPage() {
         <label className={labelCls}>Spend request (plain English)
           <textarea className={inputCls} rows={2} value={request} onChange={(e) => setRequest(e.target.value)} />
         </label>
-        <button onClick={submit} disabled={busy} className="self-start rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50">{busy ? "Running…" : "Run decision"}</button>
-        {error && <p className="text-sm text-deny">{error}</p>}
+        <button onClick={submit} disabled={busy} aria-busy={busy} className="self-start rounded-lg bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-950 disabled:opacity-50">{busy ? "Running…" : "Run decision"}</button>
+        {/* role=alert: screen readers announce the decision/error without a manual re-read */}
+        {error && <p role="alert" className="text-sm text-deny">{error}</p>}
       </div>
 
       {result && (
-        <div className="rounded-lg border border-neutral-700 p-4">
+        <div role="status" aria-live="polite" className="rounded-lg border border-neutral-700 p-4">
           <p className={`text-lg font-semibold ${badgeCls(result.decision)}`}>{result.decision}</p>
           {result.intent && (
             <p className="mt-1 text-sm text-neutral-400">
@@ -102,8 +103,9 @@ export default function DecisionsPage() {
               <p className="text-xs text-neutral-500">{p.reasons[0]}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => act(p.id, "approve")} disabled={busy} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800 disabled:opacity-50">Approve</button>
-              <button onClick={() => act(p.id, "reject")} disabled={busy} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800 disabled:opacity-50">Reject</button>
+              {/* aria-labels: two buttons both reading "Approve" is ambiguous out of context */}
+              <button onClick={() => act(p.id, "approve")} disabled={busy} aria-label={`Approve escalation for ${p.intent.vendor} $${(p.intent.amount_cents / 100).toFixed(2)}`} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800 disabled:opacity-50">Approve</button>
+              <button onClick={() => act(p.id, "reject")} disabled={busy} aria-label={`Reject escalation for ${p.intent.vendor} $${(p.intent.amount_cents / 100).toFixed(2)}`} className="rounded border border-neutral-600 px-3 py-1 text-xs hover:bg-neutral-800 disabled:opacity-50">Reject</button>
             </div>
           </div>
         ))}
