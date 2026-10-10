@@ -24,12 +24,33 @@ These are decided. Do not revisit in later sprints without a new plan.
 | D4 | Backend | **Next.js API routes** (`/app/api/*/route.ts`) — no separate Express server | One deploy target, one process, Render free tier friendly; route handlers are plain `Request -> Response` functions so logic stays testable |
 | D5 | Frontend | **Next.js App Router + React Server Components, Tailwind CSS v4, minimal static design system** | Zero-build mental overhead; RSC means the dashboard ships almost no client JS |
 | D6 | Storage | **`node:sqlite` DatabaseSync, file `data/agentguard.db`** | Node 26 has it built-in (`node:sqlite` verified working on this machine); no native deps, no ORM, no container pain |
-| D7 | LLM | **OmniRoute gateway** at `http://localhost:20128/v1/chat/completions` (OpenAI-compatible), model id from env `OMNIROUTE_MODEL`, default `ddgw/gpt-5.4-nano` | Verified working today (probe returned 'OK'). Note: `oc/big-pickle` and `auto` currently fail (OpenCode tier / Felo 400) — `ddgw/*` providers work |
+| D7 | LLM | **OpenRouter** (`https://openrouter.ai/api/v1/chat/completions`), key in `OPENROUTER_API_KEY`, model `nvidia/nemotron-3-ultra-550b-a55b:free` | Verified working with real API call (Oct 10 2026). The first key the user provided was a *management* key (401 "User not found" on chat) — must be a regular API key. OmniRoute local gateway was the fallback but `auto` and `oc/*` fail |
 | D8 | Money | **Integer minor units everywhere** (`amount_cents: number`), USD | Cents, never floats; partial-capture arithmetic stays exact |
 | D9 | Tests | **`node:test` + `assert/strict`, TypeScript directly via `node --test`** (Node 26 runs `.ts`), no jest/vitest | Zero test deps; verified working on this machine |
 | D10 | Env | `.env.local` (git-ignored) + `.env.example` (committed) | Secrets never enter git |
 
-**Stack summary (one line):** Next.js 15 App Router + TS + Tailwind v4 + node:sqlite + node:test, all in one package at the repo root.
+**Stack summary (one line):** Next.js 15 App Router + TS + Tailwind v4 + node:sqlite + node:test + OpenRouter, all in one package at the repo root.
+
+---
+
+## 2.5 Live verification results (Sprint 0, Oct 10 2026)
+
+Executed against the real PayPal sandbox and real OpenRouter — not mocks:
+
+| Check | Result |
+|---|---|
+| `npm test` | 4 pass, 0 fail |
+| `npm run typecheck` | clean (exit 0) |
+| Dev server `/` + `/api/health` | both HTTP 200 |
+| OpenRouter LLM live call | real `OK` response from `nvidia/nemotron-3-ultra-550b-a55b:free` |
+| PayPal token exchange | OK, expires_in 32400 (9h) |
+| PayPal live order (through app's `createOrder()`) | id `7SD20871L0444292G`, status `CREATED`, intent `AUTHORIZE` |
+
+**Two PayPal API quirks confirmed live (matter for Sprint 1):**
+1. The `create` response omits `intent` in its JSON body — `GET /v2/checkout/orders/{id}` returns `intent: AUTHORIZE` correctly. Don't assert on `intent` from the create response.
+2. The create response includes HATEOAS links: `authorize` (POST) and `update` (PATCH). Sprint 1 should follow those hrefs instead of hardcoding paths.
+
+**Live check command:** `npm run live-check:paypal` (runs `scripts/live-paypal-check.ts` through the app's own client — needs `.env.local` with real creds).
 
 ---
 
