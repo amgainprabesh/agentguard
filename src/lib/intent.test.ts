@@ -80,10 +80,46 @@ test("empty choices / null content fails clean instead of a TypeError", async ()
   const original = globalThis.fetch;
   try {
     for (const body of [{ choices: [] }, { choices: [{ message: {} }] }, {}]) {
-      globalThis.fetch = async () =>
-        new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      let calls = 0;
+      globalThis.fetch = async () => {
+        calls++;
+        return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      };
       await assert.rejects(() => chat([{ role: "user", content: "x" }]), /no content|failed/i);
+      assert.equal(calls, 2, "empty content is transient — exactly one retry, then fail");
     }
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("429/5xx retry once then surface the error; 4xx fails immediately", async () => {
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const { chat } = await import("./llm.ts");
+  const original = globalThis.fetch;
+  try {
+    // 429 twice -> throws transient after 2 calls
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response("rate limited", { status: 429 }); };
+    await assert.rejects(() => chat([{ role: "user", content: "x" }]), /transient: 429/);
+    assert.equal(calls, 2, "one retry on 429");
+
+    // 400 -> no retry, immediate failure
+    calls = 0;
+    globalThis.fetch = async () => { calls++; return new Response("bad request", { status: 400 }); };
+    await assert.rejects(() => chat([{ role: "user", content: "x" }]), /LLM failed: 400/);
+    assert.equal(calls, 1, "no retry on a real 4xx");
+
+    // 500 then success -> returns on the retry
+    calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) return new Response("oops", { status: 500 });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "ok" } }] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    };
+    assert.equal(await chat([{ role: "user", content: "x" }]), "ok", "recovers on the retry");
   } finally {
     globalThis.fetch = original;
   }
