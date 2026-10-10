@@ -1,5 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export type Decision = "ALLOW" | "DENY" | "ESCALATE";
 
@@ -18,6 +20,9 @@ export class Ledger {
   readonly db: DatabaseSync;
 
   constructor(path: string) {
+    // data/ is git-ignored, so a fresh clone has no such directory and SQLite
+    // fails with "unable to open database file" — create it on first boot.
+    mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     // WAL: a crash mid-append can't corrupt the ledger the way the rollback
     // journal can, and readers don't block the writer (the audit view polls

@@ -1,5 +1,6 @@
 import type { Mandate } from "./policy.ts";
-import { readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, renameSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
 export const DEFAULT_MANDATE: Mandate = {
   monthly_budget_cents: 1500000,
@@ -60,6 +61,7 @@ export class MandateStore {
   update(next: unknown): Mandate {
     const validated = validate(next);
     // write-then-swap so a failed write never leaves a half-saved file
+    mkdirSync(dirname(this.path), { recursive: true }); // data/ may not exist on a fresh clone
     const tmp = `${this.path}.tmp`;
     writeFileSync(tmp, JSON.stringify(validated, null, 2));
     renameSync(tmp, this.path);

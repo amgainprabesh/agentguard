@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Ledger } from "./ledger.ts";
+import { MandateStore, DEFAULT_MANDATE } from "./mandate.ts";
 
 test("first record has genesis hash and chains forward", () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-"));
@@ -80,5 +81,20 @@ test("WAL journal mode is set (crash-safe appends, non-blocking readers)", () =>
   const sync = ledger.db.prepare("PRAGMA synchronous").get() as { synchronous: number };
   assert.ok(sync.synchronous >= 2, "synchronous must stay FULL (2) or EXTRA (3)");
   ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("creates its parent directory — a fresh clone has no data/ dir", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-mkdir-"));
+  const nested = join(dir, "data", "agentguard.db"); // data/ does not exist yet
+  const ledger = new Ledger(nested);
+  ledger.append({ action: "ALLOW", amount_cents: 100, reason: "first row" });
+  assert.deepEqual(ledger.verifyChain(), { ok: true, brokenAt: null });
+  ledger.db.close();
+  // and the mandate store saves into a fresh dir too
+  const mandatePath = join(dir, "data", "mandate.json");
+  const store = new MandateStore(mandatePath);
+  store.update({ ...DEFAULT_MANDATE, monthly_budget_cents: 4200 });
+  assert.equal(new MandateStore(mandatePath).get().monthly_budget_cents, 4200);
   rmSync(dir, { recursive: true, force: true });
 });
