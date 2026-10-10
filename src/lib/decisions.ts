@@ -10,6 +10,26 @@ export interface CardInput {
   name: string;
 }
 
+// Trust boundary: card data comes from an untrusted JSON body. Validate shape
+// here so a malformed card fails fast with a clear message instead of a cryptic
+// PayPal/LLM error. Sandbox-only app — no real cards expected.
+export function validateCard(input: unknown): CardInput {
+  const c = input as Record<string, unknown> | null | undefined;
+  if (typeof c !== "object" || c === null) throw new Error("card must be an object");
+  const digits = typeof c.number === "string" ? c.number.replace(/\D/g, "") : "";
+  if (digits.length < 13 || digits.length > 19) throw new Error("card.number must be 13-19 digits");
+  if (typeof c.expiry !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(c.expiry)) {
+    throw new Error("card.expiry must be YYYY-MM");
+  }
+  if (typeof c.security_code !== "string" || !/^\d{3,4}$/.test(c.security_code)) {
+    throw new Error("card.security_code must be 3-4 digits");
+  }
+  if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 100) {
+    throw new Error("card.name must be a non-empty string (max 100 chars)");
+  }
+  return { number: digits, expiry: c.expiry, security_code: c.security_code, name: c.name.trim() };
+}
+
 export interface DecisionResult {
   decision: "ALLOW" | "DENY" | "ESCALATE";
   reasons: string[];
@@ -57,6 +77,7 @@ export class DecisionService {
   }
 
   async decide(request: string, card: CardInput): Promise<DecisionResult> {
+    validateCard(card);
     const intent = await extractIntent(request);
     const { decision, reasons } = evaluate(intent, this.mandate, this.monthContext(intent.category));
 
@@ -90,6 +111,7 @@ export class DecisionService {
   async approve(approval_id: string, card: CardInput): Promise<DecisionResult> {
     const p = this.pending.get(approval_id);
     if (!p) throw new Error(`approval ${approval_id} not found`);
+    validateCard(card);
     this.pending.delete(approval_id);
     const capture_id = await this.capture(p.intent, card, "approved");
     return { decision: "ALLOW", reasons: p.reasons, intent: p.intent, capture_id };

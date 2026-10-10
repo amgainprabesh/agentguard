@@ -8,7 +8,7 @@ process.env.PAYPAL_CLIENT_ID = "test-id";
 process.env.PAYPAL_SECRET = "test-secret";
 process.env.OPENROUTER_API_KEY = "test-key";
 
-const { DecisionService } = await import("./decisions.ts");
+const { DecisionService, validateCard } = await import("./decisions.ts");
 const { Ledger } = await import("./ledger.ts");
 const { resetPayPalToken } = await import("./paypal.ts");
 
@@ -290,6 +290,45 @@ test("ledger rows record the intent category; DENY/ESCALATE rows included", asyn
   const svc = new DecisionService(ledger, mandate);
   await svc.decide("buy snacks from evil.com", card);
   assert.equal(svc.ledgerRecords()[0].category, "snacks");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
+test("validateCard: accepts a valid card, rejects garbage at the trust boundary", () => {
+  assert.deepEqual(validateCard({ number: "4111 1111 1111 1111", expiry: "2028-12", security_code: "123", name: " Test Buyer " }), {
+    number: "4111111111111111", expiry: "2028-12", security_code: "123", name: "Test Buyer",
+  });
+  for (const bad of [
+    null,
+    {},
+    { ...card, number: "4111" },
+    { ...card, expiry: "12-2028" },
+    { ...card, security_code: "12" },
+    { ...card, name: "   " },
+  ]) {
+    assert.throws(() => validateCard(bad), /card/);
+  }
+});
+
+test("validateCard: decide() rejects a bad card before any LLM/PayPal call", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-vc-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  let external_calls = 0;
+  mock.method(globalThis, "fetch", async (url: any) => {
+    external_calls++;
+    throw new Error("must not be reached: " + url);
+  });
+
+  const svc = new DecisionService(ledger, mandate);
+  await assert.rejects(
+    () => svc.decide("buy $42 of snacks from acme.com", { ...card, number: "x" }),
+    /card\.number/,
+  );
+  assert.equal(external_calls, 0, "no LLM or PayPal call on invalid card");
+  assert.equal(ledger.all().length, 0, "nothing recorded for a rejected card");
 
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });
