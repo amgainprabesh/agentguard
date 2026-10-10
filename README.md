@@ -47,6 +47,7 @@ appears in the audit ledger.
 | `npm run repair-ledger` | Restores the demo ledger after the tamper demo (re-hashes the chain forward) |
 | `npm run reset-demo` | Clears the demo ledger and restarts seq at 1 — run before every demo |
 | `scripts/audit-ledger.ts` | Independent ledger audit: recomputes the chain without reusing `verifyChain()`, flags seq gaps / duplicate hashes / invalid actions / non-positive amounts. Run: `node --experimental-strip-types scripts/audit-ledger.ts` |
+| `npm run seed-demo` | Backfills the demo ledger with a realistic history (ALLOW/DENY/ESCALATE rows, backdated) so the audit view has content instantly — the video then needs only one live decide instead of four. All rows are real hash-chained rows (the chain hash excludes `created_at`, so backdating cannot break it). |
 
 ## API
 

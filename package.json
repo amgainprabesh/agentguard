@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "live-decisions": "node --experimental-strip-types --env-file=.env.local scripts/live-decisions-check.ts",
     "repair-ledger": "node --experimental-strip-types scripts/repair-ledger.ts",
-    "reset-demo": "node --experimental-strip-types scripts/reset-demo.ts"
+    "reset-demo": "node --experimental-strip-types scripts/reset-demo.ts",
+    "seed-demo": "node --experimental-strip-types scripts/seed-demo.ts"
   },
   "dependencies": {
     "next": "15.4.6",
