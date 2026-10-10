@@ -24,8 +24,11 @@ export class Deal {
   submission: string | null = null;
   score: number | null = null;
   history: DealState[] = ["CREATED"];
+  readonly init: DealInit;
 
-  constructor(readonly init: DealInit) {}
+  constructor(init: DealInit) {
+    this.init = init;
+  }
 
   private move(to: DealState): void {
     if (!canTransition(this.state, to)) {
