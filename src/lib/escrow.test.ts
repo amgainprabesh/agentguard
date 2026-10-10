@@ -134,6 +134,58 @@ test("capture failure marks the deal FAILED (no half-settle)", async () => {
   mock.reset();
 });
 
+test("score 0 settles by voiding everything (PayPal rejects $0 capture)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-e5-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  const calls: string[] = [];
+  globalThis.fetch = (async (url: any) => {
+    const u = String(url);
+    calls.push(u);
+    if (u.endsWith("/v1/oauth2/token")) {
+      return new Response(JSON.stringify({ access_token: "t", expires_in: 3600 }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (u.includes("openrouter.ai")) {
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ score: 0, breakdown: [] }) } }] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (u.endsWith("/v2/checkout/orders")) {
+      return new Response(JSON.stringify({
+        id: "ORD1", status: "COMPLETED",
+        purchase_units: [{ payments: { authorizations: [{ id: "AUTH1", status: "CREATED" }] } }],
+      }), { status: 201, headers: { "content-type": "application/json" } });
+    }
+    if (u.endsWith("/capture")) {
+      return new Response(JSON.stringify({ error: "zero not allowed" }), { status: 422 });
+    }
+    if (u.endsWith("/void")) {
+      return new Response(null, { status: 204 });
+    }
+    throw new Error("unexpected fetch: " + u);
+  }) as typeof fetch;
+
+  const escrow = new Escrow(ledger);
+  const deal = await escrow.createDeal({
+    amount_cents: 1000,
+    card: { number: "4111111111111111", expiry: "2028-12", security_code: "123", name: "T" },
+    rubric: [{ criterion: "quality", weight: 1 }],
+  });
+  await escrow.deliver(deal.id, "work");
+  const settled = await escrow.settle(deal.id);
+  assert.equal(settled.state, "SETTLED");
+  assert.equal(settled.capture_cents, 0);
+  assert.equal(settled.void_cents, 1000);
+  assert.ok(!calls.some((c) => c.endsWith("/capture")), "no capture call at score 0");
+  assert.ok(calls.some((c) => c.endsWith("/void")), "void called for the whole amount");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
 function mockPayPalFetch(url: any): Response {
   const u = String(url);
   if (u.endsWith("/v1/oauth2/token")) {

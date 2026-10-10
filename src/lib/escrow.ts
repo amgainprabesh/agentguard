@@ -72,12 +72,16 @@ export class Escrow {
     // capture the earned share, then void the rest; any failure marks the deal
     // FAILED so it can never half-settle twice
     try {
-      const cap = await capturePartial(deal.auth_id, capture_cents);
-      this.ledger.append({
-        action: "ALLOW",
-        amount_cents: capture_cents,
-        reason: `deal ${id} captured score ${grade.score}, capture ${cap.id}`,
-      });
+      // capture of $0 is rejected by PayPal (CANNOT_BE_ZERO_OR_NEGATIVE) — when the
+      // score rounds to zero cents, void everything instead
+      if (capture_cents > 0) {
+        const cap = await capturePartial(deal.auth_id, capture_cents);
+        this.ledger.append({
+          action: "ALLOW",
+          amount_cents: capture_cents,
+          reason: `deal ${id} captured score ${grade.score}, capture ${cap.id}`,
+        });
+      }
 
       // skip void when capture took the full amount — void of a fully-captured
       // authorization 422s
