@@ -196,7 +196,9 @@ export class DecisionService {
         action: "DENY",
         amount_cents: intent.amount_cents,
         category: intent.category,
-        reason: `capture failed for ${intent.vendor}: ${e}`,
+        // cap the error text: a PayPal error body is unbounded JSON with debug
+        // details — the ledger row must stay one readable line for the auditor
+        reason: `capture failed for ${intent.vendor}: ${String(e).slice(0, 300)}`,
       });
       throw e;
     }
