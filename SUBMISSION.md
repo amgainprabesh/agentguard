@@ -1,0 +1,128 @@
+# AgentGuard — Submission text (Devpost)
+
+## Tagline
+Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
+
+## Inspiration
+Companies are handing purchasing to AI agents — restocking supplies, buying ad
+credits, paying for SaaS seats. Finance has no enforcement point on the payment
+path: a prompt is not a policy, a looping agent can blow a budget before anyone
+notices, and there is no tamper-evident record of why an agent was allowed to
+spend. When the invoice lands, nobody can prove what authorized it.
+
+## What it does
+AgentGuard sits **on the payment path**, not beside it. A spend request from an
+agent goes through three stages before money can move:
+
+1. **Intent extraction** — an LLM turns a messy natural-language request
+   ("buy $42 of snacks from acme.com") into a strict structured intent
+   `{vendor, amount_cents, category}`. Any failure — parse error, malformed
+   amount, LLM error — is a DENY. The system never guesses an intent.
+2. **Rule engine** — a deterministic TypeScript policy evaluates six rules
+   (monthly budget, per-transaction cap, vendor allowlist, category limits,
+   velocity, approval threshold) against real month/velocity spend aggregated
+   from the audit ledger. Any hard violation → DENY with plain-English reasons;
+   threshold breach → ESCALATE; else ALLOW.
+3. **Execution** — ALLOW executes a real PayPal authorization + capture via the
+   Orders v2 API; ESCALATE parks for a one-tap human approval, then executes;
+   DENY never touches PayPal at all.
+
+Every decision — allow, deny, escalate, capture, denial — is appended to a
+SHA-256 hash-chained SQLite ledger. Tamper with one row and the chain visibly
+breaks at exactly that link. The auditor view shows the chain row by row, with
+a live "break the chain" demo.
+
+**The line that wins the room: policy is code, not prompt.** A prompt-injection
+attack can at worst produce a DENY — it cannot rewrite the rules, and we
+demonstrate this live.
+
+## How we built it
+- **Next.js 15** (App Router, TypeScript) — API routes + server-rendered UI.
+- **PayPal Orders v2** (sandbox): card payment_source at create time with
+  `PayPal-Request-Id`, which returns the order COMPLETED with the authorization
+  embedded — no separate authorize step; then partial capture of the exact
+  amount. All money math in integer cents, round-half-up, one tested split
+  function.
+- **node:sqlite** (`DatabaseSync`) — the append-only hash-chained audit ledger
+  with `verifyChain()`.
+- **LLM** (OpenRouter, free model) — intent extraction only; the decision
+  itself is deterministic code, never the model.
+- Input validation at every trust boundary: card shape, request text, mandate
+  edits — all validated before any external call.
+
+## Testing
+36 unit/integration tests (node:test) covering: the hash chain (genesis,
+tamper detection, category migration), mandate validation, the LLM intent
+extraction (malformed output, thinking-wrapped JSON, clamped amounts), all
+policy rules, the full ALLOW/DENY/ESCALATE/approve paths, capture failure
+handling, double-approve protection, month/velocity aggregation, and the card
+validator at the trust boundary. Plus a live end-to-end check
+(`npm run live-decisions`) that runs the whole policy path against the real
+PayPal sandbox — DENY (PayPal never touched) → ALLOW (real capture) →
+ESCALATE → approve (real capture) → chain verified.
+
+## Challenges we ran into
+- **Partial capture semantics** — we spiked the real sandbox before planning:
+  card orders authorize embedded at create time, the separate authorize
+  endpoint 422s, void returns an empty 204, and a $0 capture 422s. All encoded
+  as locked decisions.
+- **Ledger aggregation** — the velocity and budget rules must count what was
+  actually spent this month, not a running total since boot. Solved by
+  aggregating the ledger itself in `monthContext()`.
+- **Prompt injection** — the LLM output is untrusted arithmetic: the amount is
+  clamped and validated, and any parse failure is a DENY, never a guess.
+
+## Accomplishments that we're proud of
+- The live tamper demo: edit a row in the database while the audience watches,
+  re-verify, and the chain breaks at exactly that link — with a repair script
+  to restore the demo ledger afterward.
+- Zero silent failures: a capture failure writes a DENY row with the error, it
+  never reports success.
+- Complete product: mandate editor → agent runtime → decision dashboard →
+  auditor view. Judges can run it in 2 minutes (`npm install`, `.env.local`,
+  `npm run dev`).
+
+## What we learned
+- **Money math in one place**: integer minor units everywhere, one split
+  function, a tested sum invariant (captured + voided == authorized). If the
+  split is wrong, every downstream settlement is wrong.
+- **Spike before you plan**: every surprise about the PayPal API semantics was
+  found with a throwaway probe script against the live sandbox, never guessed
+  from the docs.
+- **The audit ledger is the aggregation source**: the policy engine reads real
+  spend from the same chain that proves tampering — one source of truth.
+
+## What's next for AgentGuard
+- Multi-agent support: per-agent mandates and per-agent budget partitions.
+- Webhook receiver (`/v1/notifications/verify-webhook-signature`) to ingest
+  PayPal events into the ledger — the chain becomes externally anchored.
+- Vault payment-method tokens as the agent wallet (no raw card in the request).
+- Configurable rule DSL beyond the current six rule types.
+
+## Tools list
+
+### PayPal APIs used
+- **Orders v2** (`POST /v2/checkout/orders`) — order creation with
+  `intent: AUTHORIZE` and a card `payment_source`; returns the embedded
+  authorization id in the create response.
+- **Payments v2 — Capture** (`POST /v2/payments/authorizations/{id}/capture`)
+  — partial capture of the exact spend amount.
+- **Payments v2 — Authorization status** (`GET /v2/payments/authorizations/{id}`)
+  — verify VOIDED status after partial capture + void.
+- **OAuth2 token** (`POST /v1/oauth2/token`) — client-credentials token,
+  cached in-module for ~9 hours.
+- Sandbox base: `https://api-m.sandbox.paypal.com`.
+
+### AI tools used
+- **OpenRouter** (`nvidia/nemotron-3.5-lightning:free`) — intent extraction
+  only: messy natural-language spend request → strict JSON intent. temperature
+  0, reasoning effort low. The decision itself is deterministic TypeScript, never
+  the model.
+- The LLM output is treated as untrusted input: parsed strictly, amounts
+  clamped, any failure → DENY.
+
+### Other tools
+- Next.js 15 (App Router) + TypeScript 5.9
+- node:sqlite (DatabaseSync) — hash-chained audit ledger
+- node:test — 36 tests
+- node:crypto (SHA-256) — hash chain
