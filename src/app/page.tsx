@@ -17,7 +17,9 @@ export default function Home() {
           </button>
         ))}
       </div>
-      <p className="text-xs text-neutral-500">Sprint 0 skeleton — decisions wired in Sprint 1.</p>
+      <p className="text-xs text-neutral-500">
+        Sprint 1 spine live — escrow, LLM grading, partial capture + void verified against PayPal sandbox.
+      </p>
     </main>
   );
 }

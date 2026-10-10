@@ -1,5 +1,8 @@
 # Sprint 1 — AgentGuard: Money Spine + First Vertical Slice
 
+> **⚠️ UPDATE (Oct 10 2026):** All six tasks complete and live-verified. Two post-plan changes: the grader shipped as a **real OpenRouter LLM grader** (`gradeSubmission`, replacing the `gradeStub` sketched below — Sprint 2 work done early), and a **$0-capture guard** was added (PayPal rejects zero-amount captures — score 0 voids everything instead).
+
+
 > **Method:** TDD per task (RED → implement → GREEN), vertical slice first, one working E2E path before broadening.
 > **Sprint goal:** create deal → authorize (real, via card payment_source) → stub-grade → partial capture + void remainder, one path green E2E against the live sandbox. Answers open question R1 for real.
 > **Deadline context:** hackathon due Nov 13 2026. Sprint 1 = Oct 10–13, 3 days.

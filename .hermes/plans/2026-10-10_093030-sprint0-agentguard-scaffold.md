@@ -1,5 +1,8 @@
 # Sprint 0 — AgentGuard Scaffold (Foundation Sprint)
 
+> **⚠️ UPDATE (Oct 10 2026):** Repo renamed — GitHub repo is now `amgainprabesh/agentguard`, local folder `Hbuild/paypal-hackathon/agentguard` (was `paygrade-quality-escrow`). LLM provider shipped as **OpenRouter** (D7 below reflects this; earlier OmniRoute references in this document are superseded). All Sprint 0 and Sprint 1 work is complete and live-verified.
+
+
 > **Product:** AgentGuard — spend-policy control plane for AI purchasing agents (PayPal AI Hackathon, Devpost 31302, deadline Nov 13 2026 03:45 NPT).
 > **This sprint:** scaffold the repo, lock the architecture, get a real PayPal sandbox order created through the backend. **No product logic yet.**
 > **Why so much emphasis on "get it right":** everything later (mandate editor, rule engine, auditor, chain verification) sits on this skeleton. A wrong choice here is expensive to undo, so the plan names exact stacks, exact paths, exact code.
