@@ -18,7 +18,8 @@ export default function Home() {
         ))}
       </div>
       <p className="text-xs text-neutral-500">
-        Sprint 1 spine live — escrow, LLM grading, partial capture + void verified against PayPal sandbox.
+        Policy engine live — six rules, ALLOW / DENY / ESCALATE, hash-chained audit trail.
+        Verified against the PayPal sandbox.
       </p>
     </main>
   );

@@ -9,3 +9,6 @@ data/
 *.db-wal
 .DS_Store
 *.tsbuildinfo
+
+# graphify workspace (artifacts live in .planning/graphs/)
+graphify-out/
