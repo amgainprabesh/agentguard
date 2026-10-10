@@ -49,3 +49,17 @@ test("throws on malformed output (never guesses an intent)", async () => {
     restore();
   }
 });
+
+test("extracts JSON wrapped in thinking prose (lightning model does this)", async () => {
+  const restore = mockLlm(
+    'Here\'s a thinking process:\n\n1. **Analyze:** user wants snacks from acme\n\nFinal answer:\n{"vendor": "acme.com", "amount_cents": 4200, "category": "snacks"}',
+  );
+  try {
+    const r = await extractIntent("buy $42 of snacks from acme.com");
+    assert.equal(r.vendor, "acme.com");
+    assert.equal(r.amount_cents, 4200);
+    assert.equal(r.category, "snacks");
+  } finally {
+    restore();
+  }
+});

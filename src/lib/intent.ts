@@ -1,5 +1,17 @@
 import { chat } from "./llm.ts";
 
+// Extracts the JSON object from an LLM response that may be wrapped in thinking
+// prose ("Here's a thinking process: ... {json} ..."). Takes the substring from
+// the first "{" to the matching last "}"; throws if none found.
+export function extractJson(raw: string): string {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end <= start) {
+    throw new Error(`no JSON object found in LLM output: ${raw.slice(0, 200)}`);
+  }
+  return raw.slice(start, end + 1);
+}
+
 // Messy natural-language request → structured spend intent. Throws on any LLM or
 // parse failure: a failed extraction is a DENY, never a guessed intent.
 export async function extractIntent(
@@ -23,7 +35,7 @@ export async function extractIntent(
 
   let parsed: { vendor?: unknown; amount_cents?: unknown; category?: unknown };
   try {
-    parsed = JSON.parse(raw);
+    parsed = JSON.parse(extractJson(raw));
   } catch {
     throw new Error(`intent parse failed — not JSON: ${raw.slice(0, 200)}`);
   }

@@ -1,7 +1,9 @@
 import { env } from "./env.ts";
 
-// Wired now, consumed in Sprint 2 (the grader / intent extraction). Grader must be
-// deterministic: temperature 0 + strict JSON is enforced at call sites.
+// Deterministic LLM call: temperature 0. max_tokens is generous because reasoning
+// models (nemotron-3.5) spend the budget on thinking before emitting JSON — cutting
+// it off produces truncated output that never contains the JSON. reasoning.effort
+// "low" asks the model to think less where the API supports it.
 export async function chat(messages: { role: "system" | "user"; content: string }[]): Promise<string> {
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -13,7 +15,8 @@ export async function chat(messages: { role: "system" | "user"; content: string 
       model: env.openrouterModel(),
       messages,
       temperature: 0,
-      max_tokens: 1024,
+      max_tokens: 4096,
+      reasoning: { effort: "low" },
     }),
   });
   if (!res.ok) throw new Error(`LLM failed: ${res.status} ${await res.text()}`);
