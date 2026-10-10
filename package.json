@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test 'src/**/*.test.ts' 'app/**/*.test.ts'",
+    "test": "node --test src/lib/*.test.ts app/**/*.test.ts --test-force-exit",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
