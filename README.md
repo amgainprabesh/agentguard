@@ -27,7 +27,20 @@ verifies the hash chain across every row. Needs real creds in `.env.local`.
 | GET | `/api/approvals` | Lists pending escalations |
 | POST | `/api/approvals/[id]/approve` | Executes a parked escalation (real capture) |
 | POST | `/api/approvals/[id]/reject` | Refuses an escalation, never captures |
+| GET | `/api/mandate` | Returns the current mandate |
+| PUT | `/api/mandate` | Body = full mandate → validates, persists to `data/mandate.json`, hot-swaps the engine |
+| GET | `/api/ledger` | All ledger rows + chain verification |
+| POST | `/api/ledger/tamper` | Demo hook: body `{seq}` breaks the chain at that row |
 | GET | `/api/health` | `{ok, paypal_env, llm_model}` |
+
+## UI
+
+Four views, all server-rendered by the routes above:
+
+- `/` — hub linking the three views
+- `/mandate` — edit the six rules; Save hot-swaps the live engine
+- `/decisions` — send a spend request, see the decision with reasons, approve/reject escalations
+- `/audit` — the hash chain row by row, verify, and a "break the chain" button for the tamper demo
 
 ## How a decision is made
 
@@ -47,4 +60,4 @@ can at worst produce a DENY.
 
 ## Status
 
-Sprints 0–2 complete: hash-chained audit ledger, policy engine (six rules: budget, per-txn cap, vendor allowlist, category limits, velocity, approval threshold), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. Sprint 3 adds the mandate editor UI, decision dashboard, and auditor chain view.
+Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo.
