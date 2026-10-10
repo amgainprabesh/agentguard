@@ -1,5 +1,7 @@
 # AgentGuard — Submission text (Devpost)
 
+**Repo:** https://github.com/amgainprabesh/agentguard (MIT, public)
+
 ## Tagline
 Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
 
@@ -54,7 +56,7 @@ demonstrate this live.
   bad input never spends an LLM token or a PayPal call.
 
 ## Testing
-46 unit/integration tests (node:test) covering: the hash chain (genesis,
+52 unit/integration tests (node:test) covering: the hash chain (genesis,
 tamper detection, category migration), mandate validation, the LLM intent
 extraction (malformed output, thinking-wrapped JSON, clamped amounts, transient
 retries), all policy rules, the full ALLOW/DENY/ESCALATE/approve paths, capture
@@ -141,5 +143,5 @@ hot path.)
 ### Other tools
 - Next.js 15 (App Router) + TypeScript 5.9
 - node:sqlite (DatabaseSync) — hash-chained audit ledger
-- node:test — 46 tests
+- node:test — 52 tests
 - node:crypto (SHA-256) — hash chain

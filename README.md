@@ -11,7 +11,7 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
      → *Create App* → copy **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` / `PAYPAL_SECRET`.
    - **LLM**: an OpenRouter API key from [openrouter.ai/keys](https://openrouter.ai/keys).
 3. `npm run dev` → http://localhost:3000
-4. `npm test` for the test suite (51 tests, no credentials needed — everything external is mocked).
+4. `npm test` for the test suite (52 tests, no credentials needed — everything external is mocked).
 
 ## Verify against the live sandbox
 
@@ -91,7 +91,7 @@ can at worst produce a DENY.
 
 Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo.
 
-51 tests, `npm run typecheck` and `npm run build` clean.
+52 tests, `npm run typecheck` and `npm run build` clean.
 
 ## Notes for demo day
 
