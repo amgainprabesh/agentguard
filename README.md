@@ -23,6 +23,10 @@ After the tamper demo on `/audit`, the live demo ledger's chain stays broken
 (`brokenAt: 3`) — that is the point of the demo. To restore it for a fresh demo run:
 `npm run repair-ledger`.
 
+After a rehearsal session the demo ledger fills with rows and the velocity rule
+(10 txns/hour) starts denying everything — before demoing, `npm run reset-demo`
+clears the ledger and restarts seq at 1.
+
 ## Validation (trust boundary)
 
 `POST /api/decide` and `POST /api/approvals/[id]/approve` validate before any external call:
