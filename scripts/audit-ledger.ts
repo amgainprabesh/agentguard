@@ -4,8 +4,14 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 
-const db = new DatabaseSync(join(process.cwd(), "data", "agentguard.db"));
+const dbPath = join(process.cwd(), "data", "agentguard.db");
+if (!existsSync(dbPath)) {
+  console.log("no ledger yet — run the app once (npm run dev) to create data/agentguard.db");
+  process.exit(0);
+}
+const db = new DatabaseSync(dbPath);
 const rows = db.prepare("SELECT * FROM ledger ORDER BY seq").all() as {
   seq: number; action: string; amount_cents: number; reason: string;
   prev_hash: string; hash: string; created_at: string;

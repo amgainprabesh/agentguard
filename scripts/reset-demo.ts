@@ -4,8 +4,14 @@
 // Run: npm run reset-demo
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
+import { existsSync } from "node:fs";
 
-const db = new DatabaseSync(join(process.cwd(), "data", "agentguard.db"));
+const dbPath = join(process.cwd(), "data", "agentguard.db");
+if (!existsSync(dbPath)) {
+  console.log("no ledger yet — nothing to reset (run npm run dev once to create it)");
+  process.exit(0);
+}
+const db = new DatabaseSync(dbPath);
 const before = db.prepare("SELECT COUNT(*) AS c FROM ledger").get() as { c: number };
 db.exec("DELETE FROM ledger");
 db.exec("DELETE FROM sqlite_sequence WHERE name = 'ledger'"); // restart AUTOINCREMENT at 1
