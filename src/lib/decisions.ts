@@ -1,6 +1,6 @@
-import { Ledger } from "./ledger.ts";
+import { Ledger, type LedgerRecord } from "./ledger.ts";
 import { createOrderWithCard, capturePartial } from "./paypal.ts";
-import { evaluate, type Mandate, type SpendIntent } from "./policy.ts";
+import { evaluate, type Mandate, type MonthContext, type SpendIntent } from "./policy.ts";
 import { extractIntent } from "./intent.ts";
 
 export interface CardInput {
@@ -34,20 +34,37 @@ export class DecisionService {
     this.mandate = mandate;
   }
 
-  // shortcut: month context is zeroed (single demo user, fresh ledger); Sprint 3
-  // aggregates from the ledger (sum of ALLOW amounts this month, count in last hour)
-  private monthContext(): { month_spend_cents: number; category_spend_cents: number; txns_last_hour: number } {
-    return { month_spend_cents: 0, category_spend_cents: 0, txns_last_hour: 0 };
+  // shortcut: full-table scan per decision, aggregate in SQL when the ledger exceeds ~10k rows
+  private monthContext(category: string): MonthContext {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const hourAgo = Date.now() - 3_600_000;
+    let month_spend_cents = 0;
+    let txns_last_hour = 0;
+    const byCategory = new Map<string, number>();
+    for (const r of this.ledger.all()) {
+      if (r.action !== "ALLOW") continue;
+      const t = Date.parse(r.created_at);
+      if (t >= monthStart.getTime()) {
+        month_spend_cents += r.amount_cents;
+        const cat = r.category ?? "uncategorized";
+        byCategory.set(cat, (byCategory.get(cat) ?? 0) + r.amount_cents);
+      }
+      if (t >= hourAgo) txns_last_hour++;
+    }
+    return { month_spend_cents, category_spend_cents: byCategory.get(category) ?? 0, txns_last_hour };
   }
 
   async decide(request: string, card: CardInput): Promise<DecisionResult> {
     const intent = await extractIntent(request);
-    const { decision, reasons } = evaluate(intent, this.mandate, this.monthContext());
+    const { decision, reasons } = evaluate(intent, this.mandate, this.monthContext(intent.category));
 
     if (decision === "DENY") {
       this.ledger.append({
         action: "DENY",
         amount_cents: intent.amount_cents,
+        category: intent.category,
         reason: `denied ${intent.vendor} ${intent.category}: ${reasons.join("; ")}`,
       });
       return { decision: "DENY", reasons, intent };
@@ -59,6 +76,7 @@ export class DecisionService {
       this.ledger.append({
         action: "ESCALATE",
         amount_cents: intent.amount_cents,
+        category: intent.category,
         reason: `escalated ${intent.vendor} ${intent.category} $${(intent.amount_cents / 100).toFixed(2)}: ${reasons.join("; ")} (approval ${approval_id})`,
       });
       return { decision: "ESCALATE", reasons, intent, approval_id };
@@ -84,6 +102,7 @@ export class DecisionService {
     this.ledger.append({
       action: "DENY",
       amount_cents: p.intent.amount_cents,
+      category: p.intent.category,
       reason: `rejected escalation ${approval_id}: ${p.intent.vendor} ${p.intent.category}`,
     });
   }
@@ -92,6 +111,14 @@ export class DecisionService {
     return [...this.pending.values()];
   }
 
+  setMandate(m: Mandate): void { this.mandate = m; }
+
+  ledgerRecords(): LedgerRecord[] { return this.ledger.all(); }
+
+  verifyChain() { return this.ledger.verifyChain(); }
+
+  tamperRecord(seq: number): void { this.ledger.tamper(seq); }
+
   private async capture(intent: SpendIntent, card: CardInput, verb: string): Promise<string> {
     try {
       const { auth_id } = await createOrderWithCard({ amount_cents: intent.amount_cents, card });
@@ -99,6 +126,7 @@ export class DecisionService {
       this.ledger.append({
         action: "ALLOW",
         amount_cents: intent.amount_cents,
+        category: intent.category,
         reason: `${verb} ${intent.vendor} ${intent.category} $${(intent.amount_cents / 100).toFixed(2)}, capture ${cap.id}`,
       });
       return cap.id;
@@ -106,6 +134,7 @@ export class DecisionService {
       this.ledger.append({
         action: "DENY",
         amount_cents: intent.amount_cents,
+        category: intent.category,
         reason: `capture failed for ${intent.vendor}: ${e}`,
       });
       throw e;

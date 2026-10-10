@@ -223,3 +223,75 @@ test("double-approve throws and never captures twice", async () => {
   rmSync(dir, { recursive: true, force: true });
   mock.reset();
 });
+
+test("monthContext: budget aggregation from the ledger DENIES the next spend", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-mc1-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch(intentOk);
+  const tightMandate = { ...mandate, monthly_budget_cents: 5000 };
+
+  const svc = new DecisionService(ledger, tightMandate);
+  ledger.append({ action: "ALLOW", amount_cents: 4200, reason: "seed", category: "snacks" });
+
+  const d = await svc.decide("buy $10 of snacks from acme.com", card);
+  assert.equal(d.decision, "DENY");
+  assert.ok(d.reasons.some((r) => /monthly budget/i.test(r)));
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
+test("monthContext: category limit aggregation DENIES within budget", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-mc2-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch(intentOk);
+  const tightMandate = { ...mandate, category_limits_cents: { snacks: 5000 } };
+
+  const svc = new DecisionService(ledger, tightMandate);
+  ledger.append({ action: "ALLOW", amount_cents: 4000, reason: "seed", category: "snacks" });
+
+  const d = await svc.decide("buy $20 of snacks from acme.com", card);
+  assert.equal(d.decision, "DENY");
+  assert.ok(d.reasons.some((r) => /category limit/i.test(r)));
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
+test("monthContext: velocity counts ALLOW rows in the last hour", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-mc3-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch(intentOk);
+  const tightMandate = { ...mandate, velocity_max_per_hour: 2 };
+
+  const svc = new DecisionService(ledger, tightMandate);
+  for (let i = 0; i < 2; i++) ledger.append({ action: "ALLOW", amount_cents: 100, reason: `seed ${i}`, category: "snacks" });
+
+  const d = await svc.decide("buy $4 of snacks from acme.com", card);
+  assert.equal(d.decision, "DENY");
+  assert.ok(d.reasons.some((r) => /velocity/i.test(r)));
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
+test("ledger rows record the intent category; DENY/ESCALATE rows included", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-mc4-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch({ ...intentOk, vendor: "evil.com" });
+
+  const svc = new DecisionService(ledger, mandate);
+  await svc.decide("buy snacks from evil.com", card);
+  assert.equal(svc.ledgerRecords()[0].category, "snacks");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
