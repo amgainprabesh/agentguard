@@ -56,9 +56,9 @@ export class DecisionService {
 
   // shortcut: full-table scan per decision, aggregate in SQL when the ledger exceeds ~10k rows
   private monthContext(category: string): MonthContext {
-    const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    // UTC month boundary, not local: created_at is stored as UTC ISO, and a
+    // local midnight (NPT +5:45, NY -5) silently miscounts an early-month UTC row.
+    const monthPrefix = new Date().toISOString().slice(0, 7); // "2026-10"
     const hourAgo = Date.now() - 3_600_000;
     let month_spend_cents = 0;
     let txns_last_hour = 0;
@@ -66,7 +66,7 @@ export class DecisionService {
     for (const r of this.ledger.all()) {
       if (r.action !== "ALLOW") continue;
       const t = Date.parse(r.created_at);
-      if (t >= monthStart.getTime()) {
+      if (r.created_at.slice(0, 7) === monthPrefix) {
         month_spend_cents += r.amount_cents;
         const cat = r.category ?? "uncategorized";
         byCategory.set(cat, (byCategory.get(cat) ?? 0) + r.amount_cents);

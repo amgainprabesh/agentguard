@@ -281,6 +281,29 @@ test("monthContext: velocity counts ALLOW rows in the last hour", async () => {
   mock.reset();
 });
 
+test("monthContext: month boundary is UTC — a row from another month is not counted", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-mc5-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch(intentOk);
+  // budget $50, seed $40 LAST month — this month's spend is $0, so $10 must ALLOW.
+  const tightMandate = { ...mandate, monthly_budget_cents: 5000 };
+  const svc = new DecisionService(ledger, tightMandate);
+
+  const lastMonth = new Date();
+  lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1, 15);
+  ledger.db
+    .prepare("INSERT INTO ledger (action, amount_cents, reason, category, prev_hash, hash, created_at) VALUES (?,?,?,?,?,?,?)")
+    .run("ALLOW", 4000, "seed last month", "snacks", "GENESIS", "h", lastMonth.toISOString());
+
+  const d = await svc.decide("buy $10 of snacks from acme.com", card);
+  assert.equal(d.decision, "ALLOW", "last month's spend must not count against this month's budget");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
 test("ledger rows record the intent category; DENY/ESCALATE rows included", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ag-mc4-"));
   const ledger = new Ledger(join(dir, "t.db"));
