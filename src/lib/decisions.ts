@@ -76,7 +76,9 @@ export class DecisionService {
     this.mandate = mandate;
   }
 
-  // shortcut: full-table scan per decision, aggregate in SQL when the ledger exceeds ~10k rows
+  // shortcut: full-table scan per decision, aggregate in SQL when the ledger exceeds ~10k rows.
+  // Measured: 49ms at 10k rows — and every decide already spends 15-40s in the LLM,
+  // so the scan is not on the critical path until the ledger is orders of magnitude bigger.
   private monthContext(category: string): MonthContext {
     // UTC month boundary, not local: created_at is stored as UTC ISO, and a
     // local midnight (NPT +5:45, NY -5) silently miscounts an early-month UTC row.
