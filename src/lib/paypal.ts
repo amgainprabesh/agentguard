@@ -48,3 +48,87 @@ export async function createOrder(input: { amount_cents: number; currency?: stri
   if (!res.ok) throw new Error(`PayPal createOrder failed: ${res.status} ${await res.text()}`);
   return (await res.json()) as { id: string; status: string };
 }
+
+// Create order + embedded authorization in one call, using a card payment_source.
+// The authorization id comes back INSIDE the create response — there is no separate
+// authorize step for card orders (the authorize endpoint 422s with ORDER_ALREADY_AUTHORIZED).
+export async function createOrderWithCard(input: {
+  amount_cents: number;
+  card: { number: string; expiry: string; security_code: string; name: string };
+  currency?: string;
+}): Promise<{ order_id: string; auth_id: string; status: string }> {
+  const tok = await getToken();
+  const res = await fetch(`${env.paypalBaseUrl()}/v2/checkout/orders`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${tok}`,
+      "content-type": "application/json",
+      // PayPal REQUIRES this header when payment_source is present at create time
+      "PayPal-Request-Id": crypto.randomUUID(),
+    },
+    body: JSON.stringify({
+      intent: "AUTHORIZE",
+      purchase_units: [
+        {
+          amount: {
+            currency_code: input.currency ?? "USD",
+            value: (input.amount_cents / 100).toFixed(2),
+          },
+        },
+      ],
+      payment_source: {
+        card: {
+          number: input.card.number,
+          expiry: input.card.expiry,
+          security_code: input.card.security_code,
+          name: input.card.name,
+          billing_address: {
+            address_line_1: "123 Main St",
+            admin_area_2: "San Jose",
+            admin_area_1: "CA",
+            postal_code: "95131",
+            country_code: "US",
+          },
+        },
+      },
+    }),
+  });
+  if (!res.ok) throw new Error(`PayPal createOrderWithCard failed: ${res.status} ${await res.text()}`);
+  const data = (await res.json()) as {
+    id: string;
+    status: string;
+    purchase_units: { payments: { authorizations: { id: string; status: string }[] } }[];
+  };
+  const auth = data.purchase_units?.[0]?.payments?.authorizations?.[0];
+  if (!auth) throw new Error("no authorization returned in create response");
+  return { order_id: data.id, auth_id: auth.id, status: auth.status };
+}
+
+export async function capturePartial(
+  auth_id: string,
+  amount_cents: number,
+  currency = "USD",
+): Promise<{ id: string; status: string }> {
+  const tok = await getToken();
+  const res = await fetch(`${env.paypalBaseUrl()}/v2/payments/authorizations/${auth_id}/capture`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      amount: { currency_code: currency, value: (amount_cents / 100).toFixed(2) },
+    }),
+  });
+  if (!res.ok) throw new Error(`PayPal capturePartial failed: ${res.status} ${await res.text()}`);
+  return (await res.json()) as { id: string; status: string };
+}
+
+// Void returns 204 with an EMPTY body — do not JSON.parse it.
+export async function voidAuthorization(auth_id: string): Promise<boolean> {
+  const tok = await getToken();
+  const res = await fetch(`${env.paypalBaseUrl()}/v2/payments/authorizations/${auth_id}/void`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" },
+  });
+  if (res.status === 204) return true;
+  if (!res.ok) throw new Error(`PayPal voidAuthorization failed: ${res.status} ${await res.text()}`);
+  return true;
+}
