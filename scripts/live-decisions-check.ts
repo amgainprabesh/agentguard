@@ -1,13 +1,13 @@
 // Sprint 2 acceptance: the full policy path against the LIVE sandbox.
 // Run: npm run live-decisions
 import { DecisionService } from "../src/lib/decisions.ts";
-import { DEMO_MANDATE } from "../src/lib/decisions-singleton.ts";
+import { DEFAULT_MANDATE } from "../src/lib/mandate.ts";
 import { Ledger } from "../src/lib/ledger.ts";
 import { join } from "node:path";
 
 // scratch DB by default so rehearsal runs don't pollute the demo ledger
 const ledger = new Ledger(join(process.cwd(), "data", process.env.LIVE_CHECK_DB ?? "live-check.db"));
-const svc = new DecisionService(ledger, DEMO_MANDATE);
+const svc = new DecisionService(ledger, DEFAULT_MANDATE);
 const card = {
   number: process.env.TEST_CARD_NUMBER ?? "4111111111111111",
   expiry: "2028-12",
