@@ -1,12 +1,22 @@
 // Sprint 2 acceptance: the full policy path against the LIVE sandbox.
 // Run: npm run live-decisions
+//
+// The scratch db is RECREATED every run: a leftover db has this month's ALLOW
+// rows counted against the snacks category limit ($500), so the second run's
+// $42 ALLOW correctly DENIES on category budget — a stale-db artifact that
+// looks like a regression. Delete-then-run keeps the check self-contained.
 import { DecisionService } from "../src/lib/decisions.ts";
 import { DEFAULT_MANDATE } from "../src/lib/mandate.ts";
 import { Ledger } from "../src/lib/ledger.ts";
 import { join } from "node:path";
+import { rmSync, existsSync } from "node:fs";
 
-// scratch DB by default so rehearsal runs don't pollute the demo ledger
-const ledger = new Ledger(join(process.cwd(), "data", process.env.LIVE_CHECK_DB ?? "live-check.db"));
+const dbPath = join(process.cwd(), "data", process.env.LIVE_CHECK_DB ?? "live-check.db");
+for (const suffix of ["", "-wal", "-shm", "-journal"]) {
+  const p = dbPath + suffix;
+  if (existsSync(p)) rmSync(p);
+}
+const ledger = new Ledger(dbPath);
 const svc = new DecisionService(ledger, DEFAULT_MANDATE);
 const card = {
   number: process.env.TEST_CARD_NUMBER ?? "4111111111111111",
