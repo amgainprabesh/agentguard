@@ -40,37 +40,45 @@ demonstrate this live.
 - **Next.js 15** (App Router, TypeScript) — API routes + server-rendered UI.
 - **PayPal Orders v2** (sandbox): card payment_source at create time with
   `PayPal-Request-Id`, which returns the order COMPLETED with the authorization
-  embedded — no separate authorize step; then partial capture of the exact
-  amount. All money math in integer cents, round-half-up, one tested split
-  function.
+  embedded — no separate authorize step; then a capture of the exact amount.
+  All money math in integer cents.
 - **node:sqlite** (`DatabaseSync`) — the append-only hash-chained audit ledger
-  with `verifyChain()`.
+  with `verifyChain()` (indexed on action + created_at so the policy engine's
+  month/velocity aggregation is not a full scan).
 - **LLM** (OpenRouter, free model) — intent extraction only; the decision
-  itself is deterministic code, never the model.
-- Input validation at every trust boundary: card shape, request text, mandate
-  edits — all validated before any external call.
+  itself is deterministic code, never the model. Calls time out at 90s
+  (measured tail latency of the free model) with one retry on transient
+  failures.
+- Input validation at every trust boundary: card number (Luhn) + expiry,
+  request length, mandate edits — all validated before any external call, so a
+  bad input never spends an LLM token or a PayPal call.
 
 ## Testing
-36 unit/integration tests (node:test) covering: the hash chain (genesis,
+46 unit/integration tests (node:test) covering: the hash chain (genesis,
 tamper detection, category migration), mandate validation, the LLM intent
-extraction (malformed output, thinking-wrapped JSON, clamped amounts), all
-policy rules, the full ALLOW/DENY/ESCALATE/approve paths, capture failure
-handling, double-approve protection, month/velocity aggregation, and the card
-validator at the trust boundary. Plus a live end-to-end check
-(`npm run live-decisions`) that runs the whole policy path against the real
-PayPal sandbox — DENY (PayPal never touched) → ALLOW (real capture) →
-ESCALATE → approve (real capture) → chain verified.
+extraction (malformed output, thinking-wrapped JSON, clamped amounts, transient
+retries), all policy rules, the full ALLOW/DENY/ESCALATE/approve paths, capture
+failure handling, double-approve protection, lost-escalation-on-restart
+detection, month/velocity aggregation, case-insensitive vendor/category
+matching, and the card validator at the trust boundary (Luhn, expiry). Plus a
+live end-to-end check (`npm run live-decisions`) that runs the whole policy path
+against the real PayPal sandbox — DENY (PayPal never touched) → ALLOW (real
+capture) → ESCALATE → approve (real capture) → chain verified.
 
 ## Challenges we ran into
-- **Partial capture semantics** — we spiked the real sandbox before planning:
-  card orders authorize embedded at create time, the separate authorize
-  endpoint 422s, void returns an empty 204, and a $0 capture 422s. All encoded
-  as locked decisions.
+- **PayPal card-order semantics** — we spiked the real sandbox before planning:
+  card orders authorize embedded at create time (the separate authorize
+  endpoint 422s with ORDER_ALREADY_AUTHORIZED), and the `PayPal-Request-Id`
+  header is mandatory whenever `payment_source` is present at create time.
+- **LLM tail latency** — the free model's intent call measured a median of ~15s
+  with a tail past 30s; a 30s timeout (our first guess) aborted roughly one call
+  in five. Set from measurements, the timeout is 90s with one retry on
+  transient failures.
+- **Untrusted LLM arithmetic** — the intent's amount is clamped and validated,
+  and any parse failure is a DENY, never a guess.
 - **Ledger aggregation** — the velocity and budget rules must count what was
   actually spent this month, not a running total since boot. Solved by
   aggregating the ledger itself in `monthContext()`.
-- **Prompt injection** — the LLM output is untrusted arithmetic: the amount is
-  clamped and validated, and any parse failure is a DENY, never a guess.
 
 ## Accomplishments that we're proud of
 - The live tamper demo: edit a row in the database while the audience watches,
@@ -78,17 +86,23 @@ ESCALATE → approve (real capture) → chain verified.
   to restore the demo ledger afterward.
 - Zero silent failures: a capture failure writes a DENY row with the error, it
   never reports success.
+- Every input is validated at the trust boundary before any external call — a
+  bad card (failed Luhn, expired) or an oversized request never spends an LLM
+  token or a PayPal call, and never lands in the audit ledger.
 - Complete product: mandate editor → agent runtime → decision dashboard →
   auditor view. Judges can run it in 2 minutes (`npm install`, `.env.local`,
   `npm run dev`).
 
 ## What we learned
-- **Money math in one place**: integer minor units everywhere, one split
-  function, a tested sum invariant (captured + voided == authorized). If the
-  split is wrong, every downstream settlement is wrong.
+- **Money math in one place**: integer minor units everywhere, in a single
+  conversion point. If the conversion is wrong, every downstream number is
+  wrong.
 - **Spike before you plan**: every surprise about the PayPal API semantics was
   found with a throwaway probe script against the live sandbox, never guessed
   from the docs.
+- **Measure, don't guess, timeouts**: the LLM timeout was wrong until we
+  sampled real latency — 14 measurements turned a flaky acceptance check into a
+  green one.
 - **The audit ledger is the aggregation source**: the policy engine reads real
   spend from the same chain that proves tampering — one source of truth.
 
@@ -106,12 +120,15 @@ ESCALATE → approve (real capture) → chain verified.
   `intent: AUTHORIZE` and a card `payment_source`; returns the embedded
   authorization id in the create response.
 - **Payments v2 — Capture** (`POST /v2/payments/authorizations/{id}/capture`)
-  — partial capture of the exact spend amount.
-- **Payments v2 — Authorization status** (`GET /v2/payments/authorizations/{id}`)
-  — verify VOIDED status after partial capture + void.
+  — captures the exact spend amount against the authorization.
 - **OAuth2 token** (`POST /v1/oauth2/token`) — client-credentials token,
   cached in-module for ~9 hours.
 - Sandbox base: `https://api-m.sandbox.paypal.com`.
+
+(During development we also spiked the void and authorization-status endpoints
+against the sandbox — those probes are documented in the project's PayPal skill;
+the shipped build captures the full approved amount, so void is not on its
+hot path.)
 
 ### AI tools used
 - **OpenRouter** (`nvidia/nemotron-3.5-lightning:free`) — intent extraction
@@ -124,5 +141,5 @@ ESCALATE → approve (real capture) → chain verified.
 ### Other tools
 - Next.js 15 (App Router) + TypeScript 5.9
 - node:sqlite (DatabaseSync) — hash-chained audit ledger
-- node:test — 36 tests
+- node:test — 46 tests
 - node:crypto (SHA-256) — hash chain
