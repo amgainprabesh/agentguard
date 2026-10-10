@@ -119,6 +119,9 @@ export class DecisionService {
     if (decision === "ESCALATE") {
       const approval_id = crypto.randomUUID();
       this.pending.set(approval_id, { id: approval_id, intent, reasons });
+      // the approval id lives only in this in-memory Map — a restart or dev
+      // hot-reload drops it while the ledger keeps the ESCALATE row, so the
+      // auditor can always find the id again from the ledger reason
       this.ledger.append({
         action: "ESCALATE",
         amount_cents: intent.amount_cents,
@@ -135,7 +138,18 @@ export class DecisionService {
 
   async approve(approval_id: string, card: CardInput): Promise<DecisionResult> {
     const p = this.pending.get(approval_id);
-    if (!p) throw new Error(`approval ${approval_id} not found`);
+    if (!p) {
+      // distinguish "never existed" from "lost to a restart": the ledger keeps
+      // every ESCALATE row with its approval id, so a lookup tells them apart
+      const inLedger = this.ledger.all().some(
+        (r) => r.action === "ESCALATE" && r.reason.includes(`(approval ${approval_id})`),
+      );
+      throw new Error(
+        inLedger
+          ? `approval ${approval_id} was parked but lost to a server restart — re-run the request`
+          : `approval ${approval_id} not found`,
+      );
+    }
     validateCard(card);
     this.pending.delete(approval_id);
     const capture_id = await this.capture(p.intent, card, "approved");

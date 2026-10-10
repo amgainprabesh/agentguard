@@ -215,9 +215,37 @@ test("double-approve throws and never captures twice", async () => {
   const first = await svc.approve(esc.approval_id!, card);
   assert.equal(first.capture_id, "CAP1");
 
-  // second approve of the same id: throws, and does NOT hit PayPal again
-  await assert.rejects(() => svc.approve(esc.approval_id!, card), /not found/);
+  // second approve of the same id: throws, and does NOT hit PayPal again.
+  // the id is still in the ledger's ESCALATE row, so the message is
+  // "lost to a restart" (same service instance, but the Map entry is gone)
+  await assert.rejects(() => svc.approve(esc.approval_id!, card), /not found|lost to a server restart/);
   assert.equal(captureCounter.n, 1, "exactly one capture for one approval");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});
+
+test("approve after a 'restart' says lost-to-restart, not not-found", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-d8-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch({ ...intentOk, amount_cents: 50000 });
+
+  // first service instance parks the escalation and writes the ledger row
+  const svc1 = new DecisionService(ledger, mandate);
+  const esc = await svc1.decide("buy $500 of snacks from acme.com", card);
+  assert.equal(esc.decision, "ESCALATE");
+
+  // a restart = a fresh DecisionService: the in-memory pending Map is empty,
+  // but the ledger still holds the ESCALATE row with the approval id
+  const svc2 = new DecisionService(ledger, mandate);
+  await assert.rejects(
+    () => svc2.approve(esc.approval_id!, card),
+    /lost to a server restart/,
+  );
+  // a garbage id still says not-found (it was never in the ledger either)
+  await assert.rejects(() => svc2.approve("never-existed", card), /not found/);
 
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });
