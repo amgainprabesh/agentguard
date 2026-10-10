@@ -1,5 +1,18 @@
 import type { Decision } from "./ledger.ts";
 
+// Normalizes a vendor/domain for allowlist comparison: lowercase, trim, strip a
+// leading "www." and any protocol/path. The LLM's vendor string is untrusted
+// free text — "ACME.com", "https://acme.com", "www.acme.com" must all match an
+// allowlist entry of "acme.com".
+export function normalizeVendor(v: string): string {
+  return v
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^www\./, "")
+    .replace(/\/.*$/, "");
+}
+
 export interface Mandate {
   monthly_budget_cents: number;
   per_txn_cap_cents: number;
@@ -42,8 +55,10 @@ export function evaluate(intent: SpendIntent, mandate: Mandate, ctx: MonthContex
       `would exceed the monthly budget ($${(ctx.month_spend_cents / 100).toFixed(2)} already spent of $${(mandate.monthly_budget_cents / 100).toFixed(2)})`,
     );
   }
-  if (!mandate.vendor_allowlist.includes(intent.vendor)) {
-    violations.push(`vendor ${intent.vendor} is not on the approved list`);
+  const vendor = normalizeVendor(intent.vendor);
+  const allow = new Set(mandate.vendor_allowlist.map(normalizeVendor));
+  if (!allow.has(vendor)) {
+    violations.push(`vendor ${vendor} is not on the approved list`);
   }
   const cat_limit = mandate.category_limits_cents[intent.category];
   if (cat_limit !== undefined && ctx.category_spend_cents + intent.amount_cents > cat_limit) {

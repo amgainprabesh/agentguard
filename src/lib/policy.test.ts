@@ -32,6 +32,16 @@ test("vendor not in allowlist → DENY", () => {
   assert.ok(d.reasons.some((r) => /not.*approved list/i.test(r)));
 });
 
+test("normalizeVendor: case, www, and URL prefixes all match the allowlist entry", () => {
+  for (const v of ["acme.com", "ACME.com", "Acme.COM", "  acme.com  ", "www.acme.com", "https://acme.com", "http://www.acme.com/path?x=1"]) {
+    const d = evaluate({ vendor: v, amount_cents: 4200, category: "snacks" }, mandate, ctx());
+    assert.equal(d.decision, "ALLOW", `${v} should be allowed (normalized)`);
+  }
+  // a genuinely different domain must still be denied
+  const bad = evaluate({ vendor: "acme.com.evil.net", amount_cents: 4200, category: "snacks" }, mandate, ctx());
+  assert.equal(bad.decision, "DENY", "suffix trick must not match");
+});
+
 test("would exceed monthly budget → DENY", () => {
   const d = evaluate(
     { vendor: "acme.com", amount_cents: 6000, category: "snacks" },
