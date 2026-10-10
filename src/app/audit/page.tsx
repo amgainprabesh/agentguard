@@ -9,6 +9,7 @@ const badgeCls = (a: string) => (a === "ALLOW" ? "text-allow" : a === "DENY" ? "
 export default function AuditPage() {
   const [view, setView] = useState<LedgerView | null>(null);
   const [seq, setSeq] = useState("1");
+  const [tamperMsg, setTamperMsg] = useState("");
 
   const refresh = useCallback(() => {
     fetch("/api/ledger").then((r) => r.json()).then(setView);
@@ -17,11 +18,25 @@ export default function AuditPage() {
   useEffect(refresh, [refresh]);
 
   async function tamper() {
-    await fetch("/api/ledger/tamper", {
+    const target = Number(seq);
+    // guard: tampering a seq that doesn't exist is a no-op that returns
+    // ok:true — on stage that looks like the demo is broken
+    const exists = view?.records.some((r) => r.seq === target);
+    if (!exists) {
+      setTamperMsg(`No row with seq ${target} — pick a seq from the table.`);
+      return;
+    }
+    const res = await fetch("/api/ledger/tamper", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seq: Number(seq) }),
+      body: JSON.stringify({ seq: target }),
     });
+    const j = await res.json();
+    setTamperMsg(
+      j.chain.ok
+        ? `Row ${target} updated but the chain still verifies — try another row.`
+        : `Row ${target} tampered — the chain is BROKEN at row ${j.chain.brokenAt}.`,
+    );
     refresh();
   }
 
@@ -46,6 +61,7 @@ export default function AuditPage() {
           <input className="ml-2 w-16 rounded border border-neutral-700 bg-neutral-900 p-1" value={seq} onChange={(e) => setSeq(e.target.value)} />
         </label>
         <button onClick={tamper} className="rounded border border-neutral-600 px-3 py-1 hover:bg-neutral-800">Break the chain (demo)</button>
+        {tamperMsg && <span role="status" aria-live="polite" className="text-neutral-400">{tamperMsg}</span>}
       </div>
 
       <table className="w-full text-left text-sm">
