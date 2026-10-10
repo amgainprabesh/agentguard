@@ -12,7 +12,10 @@ export default function AuditPage() {
   const [tamperMsg, setTamperMsg] = useState("");
 
   const refresh = useCallback(() => {
-    fetch("/api/ledger").then((r) => r.json()).then(setView);
+    fetch("/api/ledger")
+      .then((r) => r.json())
+      .then(setView)
+      .catch(() => setView({ records: [], chain: { ok: false, brokenAt: null } })); // a 500 must not leave the page stuck on "…"
   }, []);
 
   useEffect(refresh, [refresh]);

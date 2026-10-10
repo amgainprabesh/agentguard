@@ -19,7 +19,10 @@ export default function DecisionsPage() {
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
-    fetch("/api/approvals").then((r) => r.json()).then(setPending);
+    fetch("/api/approvals")
+      .then((r) => r.json())
+      .then((data) => setPending(Array.isArray(data) ? data : []))
+      .catch(() => setPending([])); // a failed poll must not wedge the pending list
   }, []);
 
   useEffect(() => {

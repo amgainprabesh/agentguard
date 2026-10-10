@@ -21,7 +21,10 @@ export default function MandatePage() {
   const [newLimit, setNewLimit] = useState("");
 
   useEffect(() => {
-    fetch("/api/mandate").then((r) => r.json()).then(setForm);
+    fetch("/api/mandate")
+      .then((r) => r.json())
+      .then((data) => setForm(data && typeof data === "object" ? data : null))
+      .catch(() => setForm(null)); // a failed load must not spin forever on "Loading…"
   }, []);
 
   if (!form) return <main className="p-6 text-neutral-400">Loading…</main>;
