@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decisions } from "@/lib/decisions-singleton";
-import { errorResponse } from "../_errors";
+import { errorMessage } from "../_errors";
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,6 +18,6 @@ export async function POST(req: NextRequest) {
     const d = await decisions.decide(request, body?.card);
     return NextResponse.json(d, { status: 201 });
   } catch (e) {
-    return errorResponse(e, "decision failed");
+    return NextResponse.json({ error: errorMessage(e, "decision failed") }, { status: 400 });
   }
 }

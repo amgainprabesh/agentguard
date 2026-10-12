@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decisions } from "@/lib/decisions-singleton";
-import { errorResponse } from "../../../_errors";
+import { errorMessage } from "../../../_errors";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -9,6 +9,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const d = await decisions.approve(id, body?.card);
     return NextResponse.json(d);
   } catch (e) {
-    return errorResponse(e, "approval failed");
+    return NextResponse.json({ error: errorMessage(e, "approval failed") }, { status: 400 });
   }
 }

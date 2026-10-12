@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decisions } from "@/lib/decisions-singleton";
-import { errorResponse } from "../../_errors";
+import { errorMessage } from "../../_errors";
 
 // demo-only endpoint behind the auditor view's "break the chain" button
 export async function POST(req: NextRequest) {
@@ -18,6 +18,6 @@ export async function POST(req: NextRequest) {
     decisions.tamperRecord(seq);
     return NextResponse.json({ ok: true, chain: decisions.verifyChain() });
   } catch (e) {
-    return errorResponse(e, "tamper failed");
+    return NextResponse.json({ error: errorMessage(e, "tamper failed") }, { status: 400 });
   }
 }
