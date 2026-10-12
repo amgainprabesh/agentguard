@@ -42,9 +42,14 @@ export default function DecisionsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ request, card }),
       });
-      if (!res.ok) { setError(`Rejected: ${(await res.json()).error}`); return; }
-      setResult(await res.json());
+      // guard the body: a 500 serves an HTML error page, so res.json() throws
+      // and an unguarded read would leave the form wedged with no message
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setError(`Rejected: ${j?.error ?? "unknown error"}`); return; }
+      setResult(j);
       refresh();
+    } catch (e) {
+      setError(`Request failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -59,8 +64,12 @@ export default function DecisionsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ card }),
       });
-      if (!res.ok) { setError(`Rejected: ${(await res.json()).error}`); refresh(); return; }
-      if (verb === "approve") setResult(await res.json()); // show the ALLOW result + capture id
+      const j = await res.json().catch(() => null);
+      if (!res.ok) { setError(`Rejected: ${j?.error ?? "unknown error"}`); refresh(); return; }
+      if (verb === "approve") setResult(j); // show the ALLOW result + capture id
+      refresh();
+    } catch (e) {
+      setError(`Request failed: ${String(e)}`);
       refresh();
     } finally {
       setBusy(false);

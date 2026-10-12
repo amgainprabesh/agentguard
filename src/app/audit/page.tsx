@@ -29,18 +29,28 @@ export default function AuditPage() {
       setTamperMsg(`No row with seq ${target} — pick a seq from the table.`);
       return;
     }
-    const res = await fetch("/api/ledger/tamper", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seq: target }),
-    });
-    const j = await res.json();
-    setTamperMsg(
-      j.chain.ok
-        ? `Row ${target} updated but the chain still verifies — try another row.`
-        : `Row ${target} tampered — the chain is BROKEN at row ${j.chain.brokenAt}.`,
-    );
-    refresh();
+    try {
+      const res = await fetch("/api/ledger/tamper", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ seq: target }),
+      });
+      // guard the body: a 500 serves HTML — an unguarded res.json() throws
+      // and the demo's feedback line never updates
+      const j = (await res.json().catch(() => null)) as { chain?: { ok: boolean; brokenAt: number | null }; error?: string } | null;
+      if (!res.ok || !j?.chain) {
+        setTamperMsg(`Tamper rejected: ${j?.error ?? "unknown error"}`);
+        return;
+      }
+      setTamperMsg(
+        j.chain.ok
+          ? `Row ${target} updated but the chain still verifies — try another row.`
+          : `Row ${target} tampered — the chain is BROKEN at row ${j.chain.brokenAt}.`,
+      );
+      refresh();
+    } catch (e) {
+      setTamperMsg(`Tamper request failed: ${String(e)}`);
+    }
   }
 
   return (

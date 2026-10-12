@@ -26,19 +26,26 @@ export default function MandatePage() {
       .then((data) => setForm(data && typeof data === "object" ? data : null))
       .catch(() => setForm(null)); // a failed load must not spin forever on "Loading…"
   }, []);
-
   if (!form) return <main className="p-6 text-neutral-400">Loading…</main>;
 
   const setCents = (key: "monthly_budget_cents" | "per_txn_cap_cents" | "approval_threshold_cents", d: string) =>
     setForm({ ...form, [key]: Math.round(Number(d) * 100) });
 
   async function save() {
-    const res = await fetch("/api/mandate", {
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setMsg(res.ok ? "Saved — the rule engine now enforces this mandate." : `Rejected: ${(await res.json()).error}`);
+    let j: { error?: string } | null = null;
+    try {
+      const res = await fetch("/api/mandate", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      // guard the body: a 500 serves HTML, so res.json() throws and an
+      // unguarded read leaves the page showing the stale form as "saved"
+      j = await res.json().catch(() => null);
+      setMsg(res.ok ? "Saved — the rule engine now enforces this mandate." : `Rejected: ${j?.error ?? "unknown error"}`);
+    } catch (e) {
+      setMsg(`Save failed: ${String(e)}`);
+    }
   }
 
   return (
