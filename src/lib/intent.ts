@@ -1,4 +1,5 @@
 import { chat } from "./llm.ts";
+import { normalizeVendor } from "./policy.ts";
 
 // Extracts the JSON object from an LLM response that may be wrapped in thinking
 // prose ("Here's a thinking process: ... {json} ..."). Takes the substring from
@@ -49,6 +50,23 @@ export async function extractIntent(
   }
   if (typeof parsed.vendor !== "string" || !parsed.vendor) {
     throw new Error(`intent parse failed — no vendor in: ${raw.slice(0, 200)}`);
+  }
+
+  // Homoglyph guard: the policy allowlists the LLM's OUTPUT string, but a
+  // homoglyph request ("buy $10 from <Cyrillic а>cme.com") gets silently
+  // normalized by the model to ASCII "acme.com" — the user's literal
+  // non-allowlisted domain never reaches the check, so it fail-OPENs to ALLOW
+  // (verified live: 201 ALLOW with a real capture). Grounding rule: the
+  // extracted vendor must actually appear in the request text. A vendor the
+  // user never typed is either a homoglyph or an LLM hallucination — both
+  // must fail closed. normalizeVendor() both sides so "ACME.com" /
+  // "https://acme.com/x" still match a request saying "acme.com".
+  const vendor = normalizeVendor(parsed.vendor);
+  const haystack = request.toLowerCase();
+  if (!haystack.includes(vendor)) {
+    throw new Error(
+      `intent parse failed — vendor "${parsed.vendor}" does not appear in the request (possible homoglyph or hallucination)`,
+    );
   }
 
   return {

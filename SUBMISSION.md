@@ -61,15 +61,17 @@ demonstrate this live.
   critical RCE advisory cluster.
 
 ## Testing
-57 unit/integration tests (node:test) covering: the hash chain (genesis,
-tamper detection, category migration), mandate validation, the LLM intent
-extraction (malformed output, thinking-wrapped JSON, clamped amounts, transient
-retries), all policy rules, the full ALLOW/DENY/ESCALATE/approve paths, capture
-failure handling, double-approve protection, lost-escalation-on-restart
-detection, month/velocity aggregation, case-insensitive vendor/category
-matching, the card validator at the trust boundary (Luhn, expiry), the tamper
-endpoint's seq guard (400/404, no silent success), and the API error-message
-whitelist (vendor/LLM error bodies never leak). Plus a
+89 unit/integration tests (node:test) covering: the hash chain (genesis,
+tamper detection, category migration, category-in-hash integrity), mandate
+validation, the LLM intent extraction (malformed output, thinking-wrapped
+JSON, clamped amounts, transient retries, homoglyph/hallucinated-vendor
+rejection), all policy rules incl. inclusive boundaries, the full
+ALLOW/DENY/ESCALATE/approve paths, capture failure handling, double-approve
+protection, lost-escalation-on-restart detection, month/velocity aggregation,
+case-insensitive vendor/category matching, the card validator at the trust
+boundary (Luhn, expiry), the tamper endpoint's seq guard (400/404, no silent
+success), and the API error-message whitelist (vendor/LLM error bodies never
+leak). Plus a
 live end-to-end check (`npm run live-decisions`) that runs the whole policy path
 against the real PayPal sandbox — DENY (PayPal never touched) → ALLOW (real
 capture) → ESCALATE → approve (real capture) → chain verified.
@@ -152,5 +154,5 @@ hot path.)
 ### Other tools
 - Next.js 15 (App Router) + TypeScript 5.9
 - node:sqlite (DatabaseSync) — hash-chained audit ledger
-- node:test — 57 tests
+- node:test — 89 tests
 - node:crypto (SHA-256) — hash chain

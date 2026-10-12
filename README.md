@@ -11,7 +11,7 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
      → *Create App* → copy **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` / `PAYPAL_SECRET`.
    - **LLM**: an OpenRouter API key from [openrouter.ai/keys](https://openrouter.ai/keys).
 3. `npm run dev` → http://localhost:3000
-4. `npm test` for the test suite (57 tests, no credentials needed — everything external is mocked).
+4. `npm test` for the test suite (89 tests, no credentials needed — everything external is mocked).
 
 ## Verify against the live sandbox
 
@@ -54,6 +54,15 @@ Hardening shipped on top of the trust-boundary validation:
   nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
   and a CSP.
 - **`next` 15.4.6 → 15.5.27** — drops the critical RCE advisory cluster.
+- **Homoglyph vendors fail closed** — `extractIntent()` requires the extracted
+  vendor to appear (normalized) in the request text. A Cyrillic lookalike
+  (`аcme.com`) used to be silently normalized by the LLM to ASCII `acme.com`
+  and ALLOWed; now it is rejected as a parse failure (a DENY), and so is a
+  hallucinated vendor the user never typed.
+- **`category` is inside the ledger hash** — it drives the category-limit
+  aggregation, so an edited category breaks the chain at that row.
+- **A failed intent extraction leaves a DENY row** — previously the 400
+  response left no audit trail.
 
 `repair-ledger.ts` re-hashes from the running `prev` and strips every `[TAMPERED]`
 marker, so a mid-chain tamper now repairs cleanly (the old script left the chain
@@ -70,6 +79,11 @@ broken at the following row).
 - **CSP `script-src` stays permissive** (`'self' 'unsafe-inline' 'unsafe-eval'`) —
   Next ships inline RSC payloads and dev hydration needs `eval`. The real fix is
   per-request nonce middleware; until that is wired, the other headers still apply.
+- **Unknown fields in `PUT /api/mandate` are silently ignored** (HTTP 200) — a
+  typo'd field name would be dropped while the caller believes it was applied.
+- **Velocity has a check-then-act race** under concurrent requests (not observed
+  to breach the cap: `node:sqlite` writes are synchronous and WAL-serialized).
+- **Dependency/LLM failures surface as HTTP 400**, not 5xx — cosmetic.
 
 ## Maintenance scripts
 
@@ -124,7 +138,7 @@ can at worst produce a DENY.
 
 Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo. Security hardening landed since: input-validated tamper endpoint, whitelisted API error messages, security headers, `next` bumped to 15.5.27, repair-ledger bug fixed (see [Security](#security)).
 
-57 tests, `npm run typecheck` and `npm run build` clean.
+89 tests, `npm run typecheck` and `npm run build` clean.
 
 ## Notes for demo day
 
