@@ -15,16 +15,16 @@
     "seed-demo": "node --experimental-strip-types scripts/seed-demo.ts"
   },
   "dependencies": {
-    "next": "15.4.6",
+    "next": "15.5.27",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "4.1.13",
     "@types/node": "24.9.2",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
-    "typescript": "5.9.3",
     "tailwindcss": "4.1.13",
-    "@tailwindcss/postcss": "4.1.13"
+    "typescript": "5.9.3"
   }
 }

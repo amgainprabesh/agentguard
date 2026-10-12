@@ -178,6 +178,10 @@ export class DecisionService {
 
   ledgerRecords(): LedgerRecord[] { return this.ledger.all(); }
 
+  hasLedgerRow(seq: number): boolean {
+    return this.ledger.all().some((r) => r.seq === seq);
+  }
+
   verifyChain() { return this.ledger.verifyChain(); }
 
   tamperRecord(seq: number): void { this.ledger.tamper(seq); }

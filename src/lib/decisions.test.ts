@@ -396,3 +396,19 @@ test("validateCard: decide() rejects a bad card before any LLM/PayPal call", asy
   rmSync(dir, { recursive: true, force: true });
   mock.reset();
 });
+
+test("hasLedgerRow: only real seqs count (the tamper endpoint's guard)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-hlr-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  const svc = new DecisionService(ledger, mandate);
+  ledger.append({ action: "DENY", amount_cents: 100, reason: "r", category: "snacks" });
+
+  assert.equal(svc.hasLedgerRow(1), true, "the appended row exists");
+  assert.equal(svc.hasLedgerRow(2), false, "the next seq does not exist yet");
+  assert.equal(svc.hasLedgerRow(999), false, "a far-future seq never exists");
+  assert.equal(svc.hasLedgerRow(-1), false, "a negative seq never exists");
+  assert.equal(svc.hasLedgerRow(0), false, "seq 0 is never a row");
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+});

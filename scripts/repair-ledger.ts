@@ -22,8 +22,14 @@ const hashOf = (r: typeof rows[0]) =>
 let prev = "GENESIS";
 let fixed = 0;
 for (const row of rows) {
-  const reason = row.reason.replace(" [TAMPERED]", "");
-  const hash = hashOf({ ...row, reason });
+  // strip EVERY marker: the tamper probe can fire twice on the same row (or a
+  // judge clicks "Break the chain" twice), and a single .replace() would leave
+  // one behind — the row would keep a marker and a wrong hash forever.
+  const reason = row.reason.replace(/ \[TAMPERED\]/g, "");
+  // compute the hash from the RUNNING prev, never the row's stored prev_hash:
+  // a downstream row's stored prev_hash is the pre-repair hash, so hashing
+  // against it writes a hash that can never match the prev_hash we just wrote.
+  const hash = hashOf({ ...row, reason, prev_hash: prev });
   if (reason !== row.reason || hash !== row.hash || row.prev_hash !== prev) {
     db.prepare("UPDATE ledger SET reason=?, prev_hash=?, hash=? WHERE seq=?").run(reason, prev, hash, row.seq);
     fixed++;
