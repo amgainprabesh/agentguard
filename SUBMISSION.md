@@ -54,15 +54,22 @@ demonstrate this live.
 - Input validation at every trust boundary: card number (Luhn) + expiry,
   request length, mandate edits — all validated before any external call, so a
   bad input never spends an LLM token or a PayPal call.
+- Security hardening: a shared error-response whitelist (only our own validation
+  messages reach the client — vendor and LLM error bodies do not), a tamper
+  endpoint that 400/404s on a bad or missing seq instead of faking success,
+  baseline security headers on every response, and a `next` bump that clears the
+  critical RCE advisory cluster.
 
 ## Testing
-52 unit/integration tests (node:test) covering: the hash chain (genesis,
+57 unit/integration tests (node:test) covering: the hash chain (genesis,
 tamper detection, category migration), mandate validation, the LLM intent
 extraction (malformed output, thinking-wrapped JSON, clamped amounts, transient
 retries), all policy rules, the full ALLOW/DENY/ESCALATE/approve paths, capture
 failure handling, double-approve protection, lost-escalation-on-restart
 detection, month/velocity aggregation, case-insensitive vendor/category
-matching, and the card validator at the trust boundary (Luhn, expiry). Plus a
+matching, the card validator at the trust boundary (Luhn, expiry), the tamper
+endpoint's seq guard (400/404, no silent success), and the API error-message
+whitelist (vendor/LLM error bodies never leak). Plus a
 live end-to-end check (`npm run live-decisions`) that runs the whole policy path
 against the real PayPal sandbox — DENY (PayPal never touched) → ALLOW (real
 capture) → ESCALATE → approve (real capture) → chain verified.
@@ -114,6 +121,8 @@ capture) → ESCALATE → approve (real capture) → chain verified.
   PayPal events into the ledger — the chain becomes externally anchored.
 - Vault payment-method tokens as the agent wallet (no raw card in the request).
 - Configurable rule DSL beyond the current six rule types.
+- Strict CSP via nonce middleware (script-src is permissive today) and
+  authentication on the mutating endpoints before any public deployment.
 
 ## Tools list
 
@@ -143,5 +152,5 @@ hot path.)
 ### Other tools
 - Next.js 15 (App Router) + TypeScript 5.9
 - node:sqlite (DatabaseSync) — hash-chained audit ledger
-- node:test — 52 tests
+- node:test — 57 tests
 - node:crypto (SHA-256) — hash chain

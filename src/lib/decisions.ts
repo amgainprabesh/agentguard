@@ -105,7 +105,23 @@ export class DecisionService {
 
   async decide(request: string, card: CardInput): Promise<DecisionResult> {
     validateCard(card);
-    const intent = await extractIntent(request);
+    let intent: SpendIntent;
+    try {
+      intent = await extractIntent(request);
+    } catch (e) {
+      // A failed extraction IS a DENY (intent.ts's contract, README's claim) —
+      // but the old code let the throw escape to the route's catch, which
+      // returned 400 with NO ledger row. A request the system refused to act
+      // on then left no audit trail, which is exactly what this ledger exists
+      // to prevent. Record the refusal instead of letting it vanish.
+      this.ledger.append({
+        action: "DENY",
+        amount_cents: 0,
+        category: null,
+        reason: `intent extraction failed: ${String(e).slice(0, 300)}`,
+      });
+      throw e;
+    }
     const { decision, reasons } = evaluate(intent, this.mandate, this.monthContext(intent.category));
 
     if (decision === "DENY") {

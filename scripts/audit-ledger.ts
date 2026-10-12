@@ -13,12 +13,14 @@ if (!existsSync(dbPath)) {
 }
 const db = new DatabaseSync(dbPath);
 const rows = db.prepare("SELECT * FROM ledger ORDER BY seq").all() as {
-  seq: number; action: string; amount_cents: number; reason: string;
+  seq: number; action: string; amount_cents: number; reason: string; category: string | null;
   prev_hash: string; hash: string; created_at: string;
 }[];
 
-const hashOf = (r: { action: string; amount_cents: number; reason: string; prev_hash: string }) =>
-  createHash("sha256").update(JSON.stringify([r.action, r.amount_cents, r.reason, r.prev_hash])).digest("hex");
+// mirrors ledger.ts hashOf — category is IN the hash (it drives the
+// category-limit aggregation, so an edited category must break the chain)
+const hashOf = (r: { action: string; amount_cents: number; reason: string; category: string | null; prev_hash: string }) =>
+  createHash("sha256").update(JSON.stringify([r.action, r.amount_cents, r.reason, r.category ?? null, r.prev_hash])).digest("hex");
 
 let prev = "GENESIS";
 let brokenAt: number | null = null;

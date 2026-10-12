@@ -12,11 +12,12 @@ if (!existsSync(dbPath)) {
 }
 const db = new DatabaseSync(dbPath);
 const rows = db.prepare("SELECT * FROM ledger ORDER BY seq").all() as {
-  seq: number; action: string; amount_cents: number; reason: string; prev_hash: string; hash: string;
+  seq: number; action: string; amount_cents: number; reason: string; category: string | null;
+  prev_hash: string; hash: string;
 }[];
 const hashOf = (r: typeof rows[0]) =>
   createHash("sha256")
-    .update(JSON.stringify([r.action, r.amount_cents, r.reason, r.prev_hash]))
+    .update(JSON.stringify([r.action, r.amount_cents, r.reason, r.category ?? null, r.prev_hash]))
     .digest("hex");
 
 let prev = "GENESIS";

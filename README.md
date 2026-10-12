@@ -11,7 +11,7 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
      → *Create App* → copy **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` / `PAYPAL_SECRET`.
    - **LLM**: an OpenRouter API key from [openrouter.ai/keys](https://openrouter.ai/keys).
 3. `npm run dev` → http://localhost:3000
-4. `npm test` for the test suite (52 tests, no credentials needed — everything external is mocked).
+4. `npm test` for the test suite (57 tests, no credentials needed — everything external is mocked).
 
 ## Verify against the live sandbox
 
@@ -39,6 +39,38 @@ clears the ledger and restarts seq at 1.
 A bad card therefore never spends an LLM token or a PayPal call, and never
 appears in the audit ledger.
 
+## Security
+
+Hardening shipped on top of the trust-boundary validation:
+
+- **Tamper endpoint validates `seq`** — `POST /api/ledger/tamper` returns 400 for a
+  non-positive-integer `seq` and 404 for a `seq` with no ledger row, instead of the
+  old silent `ok:true` with nothing broken.
+- **Error responses are whitelisted** — `src/app/api/_errors.ts` echoes only known
+  validation messages (`card.`, `mandate.`, `request`, `approval` prefixes, ≤200
+  chars). Vendor (PayPal) and LLM error bodies are replaced by a generic fallback,
+  so internals never reach the client.
+- **Security headers on every response** (`next.config.ts`): `X-Content-Type-Options:
+  nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  and a CSP.
+- **`next` 15.4.6 → 15.5.27** — drops the critical RCE advisory cluster.
+
+`repair-ledger.ts` re-hashes from the running `prev` and strips every `[TAMPERED]`
+marker, so a mid-chain tamper now repairs cleanly (the old script left the chain
+broken at the following row).
+
+## Known limitations
+
+- **`npm audit` still reports 2 advisories** — both transitive PostCSS issues
+  pulled in by `next` (1 high: arbitrary `.map` file read; 1 moderate: XSS in CSS
+  stringify output). A clean fix requires `next` 16, a breaking major.
+- **No authentication on mutating endpoints** — `/api/decide`, the approvals, and
+  `PUT /api/mandate` are unauthenticated. This is a localhost-only demo; do not
+  deploy it publicly without adding auth.
+- **CSP `script-src` stays permissive** (`'self' 'unsafe-inline' 'unsafe-eval'`) —
+  Next ships inline RSC payloads and dev hydration needs `eval`. The real fix is
+  per-request nonce middleware; until that is wired, the other headers still apply.
+
 ## Maintenance scripts
 
 | Script | What it does |
@@ -60,7 +92,7 @@ appears in the audit ledger.
 | GET | `/api/mandate` | Returns the current mandate |
 | PUT | `/api/mandate` | Body = full mandate → validates, persists to `data/mandate.json`, hot-swaps the engine |
 | GET | `/api/ledger` | All ledger rows + chain verification |
-| POST | `/api/ledger/tamper` | Demo hook: body `{seq}` breaks the chain at that row |
+| POST | `/api/ledger/tamper` | Demo hook: body `{seq}` breaks the chain at that row. 400 if `seq` is not a positive integer, 404 if no row has it |
 | GET | `/api/health` | `{ok, paypal_env, llm_model}` |
 
 ## UI
@@ -90,9 +122,9 @@ can at worst produce a DENY.
 
 ## Status
 
-Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo.
+Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo. Security hardening landed since: input-validated tamper endpoint, whitelisted API error messages, security headers, `next` bumped to 15.5.27, repair-ledger bug fixed (see [Security](#security)).
 
-52 tests, `npm run typecheck` and `npm run build` clean.
+57 tests, `npm run typecheck` and `npm run build` clean.
 
 ## Notes for demo day
 

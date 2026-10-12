@@ -49,9 +49,12 @@ export class Ledger {
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_ledger_action_created ON ledger (action, created_at)");
   }
 
-  private hashOf(rec: { action: Decision; amount_cents: number; reason: string; prev_hash: string }): string {
+  private hashOf(rec: { action: Decision; amount_cents: number; reason: string; category?: string | null; prev_hash: string }): string {
+    // category is IN the hash: it drives monthContext()'s category-limit
+    // aggregation, so a row whose category is edited in the DB would dodge
+    // (or trigger) a category limit while verifyChain() still said OK.
     return createHash("sha256")
-      .update(JSON.stringify([rec.action, rec.amount_cents, rec.reason, rec.prev_hash]))
+      .update(JSON.stringify([rec.action, rec.amount_cents, rec.reason, rec.category ?? null, rec.prev_hash]))
       .digest("hex");
   }
 
