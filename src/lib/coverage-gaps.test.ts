@@ -219,7 +219,7 @@ test("a missing or non-string category defaults to 'uncategorized'", async () =>
     const restore = mockLlm(JSON.stringify(body));
     try {
       // the request must NAME the vendor: an ungrounded vendor is a homoglyph
-      // or a hallucination and fails closed (see the homoglyph test)
+      // or a hallucination and fails closed (see the ungrounded-vendor test)
       assert.equal((await extractIntent("buy $42 of snacks from acme.com")).category, "uncategorized");
     } finally {
       restore();
@@ -240,13 +240,12 @@ test("an LLM transport failure surfaces as 'intent LLM failed'", async () => {
 });
 
 test("a homoglyph vendor is rejected: the extracted vendor must appear in the request", async () => {
-  // the LLM normalizes the Cyrillic lookalick 'а' (U+0430) to ASCII 'a',
+  // the LLM normalizes the Cyrillic lookalike '\u0430' (U+0430) to ASCII "a",
   // returning "acme.com" for a request that literally typed a different domain
-  const cyrillicRequest = "buy $10 from \u0430cme.com"; // <Cyrillic а>cme.com
   const restore = mockLlm(JSON.stringify({ vendor: "acme.com", amount_cents: 1000, category: "purchase" }));
   try {
     await assert.rejects(
-      () => extractIntent(cyrillicRequest),
+      () => extractIntent("buy $10 from \u0430cme.com"),
       /does not appear in the request/,
     );
   } finally {
@@ -255,7 +254,7 @@ test("a homoglyph vendor is rejected: the extracted vendor must appear in the re
 });
 
 test("a hallucinated vendor (not in the request) is rejected too", async () => {
-  // the LLM invents a vendor the user never typed — same fail-closed rule
+  // the LLM invents a vendor the user never typed — same fail-closed rule, different cause
   const restore = mockLlm(JSON.stringify({ vendor: "globex.com", amount_cents: 1000, category: "purchase" }));
   try {
     await assert.rejects(
@@ -268,7 +267,7 @@ test("a hallucinated vendor (not in the request) is rejected too", async () => {
 });
 
 test("a grounded vendor with URL/uppercase/ www. forms still extracts", async () => {
-  // normalizeVendor() both sides, so these request spellings all ground OK
+  // the vendor side is normalizeVendor'd, so these request spellings all ground OK
   for (const [req, llmVendor] of [
     ["buy $42 of snacks from acme.com", "acme.com"],
     ["buy $42 of snacks from ACME.COM", "acme.com"],
@@ -278,8 +277,7 @@ test("a grounded vendor with URL/uppercase/ www. forms still extracts", async ()
   ]) {
     const restore = mockLlm(JSON.stringify({ vendor: llmVendor, amount_cents: 4200, category: "snacks" }));
     try {
-      const r = await extractIntent(req);
-      assert.equal(r.vendor, llmVendor, `${req} / ${llmVendor} must extract`);
+      assert.equal((await extractIntent(req)).vendor, llmVendor, `${req} / ${llmVendor} must extract`);
     } finally {
       restore();
     }

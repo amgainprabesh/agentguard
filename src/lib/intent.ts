@@ -52,20 +52,16 @@ export async function extractIntent(
     throw new Error(`intent parse failed — no vendor in: ${raw.slice(0, 200)}`);
   }
 
-  // Homoglyph guard: the policy allowlists the LLM's OUTPUT string, but a
-  // homoglyph request ("buy $10 from <Cyrillic а>cme.com") gets silently
-  // normalized by the model to ASCII "acme.com" — the user's literal
-  // non-allowlisted domain never reaches the check, so it fail-OPENs to ALLOW
-  // (verified live: 201 ALLOW with a real capture). Grounding rule: the
-  // extracted vendor must actually appear in the request text. A vendor the
-  // user never typed is either a homoglyph or an LLM hallucination — both
-  // must fail closed. normalizeVendor() both sides so "ACME.com" /
-  // "https://acme.com/x" still match a request saying "acme.com".
+  // Homoglyph guard: the model silently rewrites lookalike domains to ASCII, so
+  // policy.ts would allowlist its output rather than the domain the user typed.
+  // Ground the guard instead — the extracted vendor must appear in the request,
+  // or it is a homoglyph or a hallucination and must fail closed. normalizeVendor()
+  // the vendor side; the request side only needs lowercasing to be a haystack.
   const vendor = normalizeVendor(parsed.vendor);
   const haystack = request.toLowerCase();
   if (!haystack.includes(vendor)) {
     throw new Error(
-      `intent parse failed — vendor "${parsed.vendor}" does not appear in the request (possible homoglyph or hallucination)`,
+      `intent parse failed — vendor "${parsed.vendor.slice(0, 200)}" does not appear in the request (possible homoglyph or hallucination)`,
     );
   }
 
