@@ -43,6 +43,23 @@ appears in the audit ledger.
 
 Hardening shipped on top of the trust-boundary validation:
 
+- **CSRF/origin check on every mutating call** — `src/middleware.ts` rejects
+  browser requests from other origins (`Sec-Fetch-Site: cross-site` → 403).
+  Non-browser clients (curl, scripts) are unaffected. For scripted/LAN use, set
+  `AGENTGUARD_TOKEN` and send `x-agentguard-token` on every POST/PUT/DELETE.
+- **CSP via middleware** — `object-src 'none'`, and prod drops `'unsafe-eval'`
+  (dev keeps it for Next's eval-based chunk loading). `script-src` keeps
+  `'unsafe-inline'` — a per-request nonce was tried and **does not work on
+  next 15.5.27** (the framework's bootstrap scripts never carry it; verified,
+  see `TESTING-AND-SECURITY-REPORT.md` §5). Revisit on next 16.
+- **Mandate PUT is strict** — unknown fields are rejected (a typo saves as an
+  error, not silently), `__proto__`/`constructor`/`prototype` category keys are
+  rejected, and every number is capped at $10M.
+- **Approvals are retryable** — a failed capture no longer consumes the parked
+  escalation; the same approval id can be retried after the vendor recovers.
+- **Vendor/LLM error bodies never reach the client or the ledger** — API errors
+  carry the status only (full body goes to server logs); dependency failures are
+  now HTTP 500, validation failures 400, and malformed JSON is 400.
 - **Tamper endpoint validates `seq`** — `POST /api/ledger/tamper` returns 400 for a
   non-positive-integer `seq` and 404 for a `seq` with no ledger row, instead of the
   old silent `ok:true` with nothing broken.
@@ -50,7 +67,7 @@ Hardening shipped on top of the trust-boundary validation:
   validation messages (`card.`, `mandate.`, `request`, `approval` prefixes, ≤200
   chars). Vendor (PayPal) and LLM error bodies are replaced by a generic fallback,
   so internals never reach the client.
-- **Security headers on every response** (`next.config.ts`): `X-Content-Type-Options:
+- **Security headers on every response** (`next.config.ts` + middleware): `X-Content-Type-Options:
   nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
   and a CSP.
 - **`next` 15.4.6 → 15.5.27** — drops the critical RCE advisory cluster.
@@ -63,6 +80,9 @@ Hardening shipped on top of the trust-boundary validation:
   aggregation, so an edited category breaks the chain at that row.
 - **A failed intent extraction leaves a DENY row** — previously the 400
   response left no audit trail.
+- **Stable ledger location** — the data directory is `<project root>/data`;
+  set `AGENTGUARD_DATA_DIR` when launching `next start` by hand from another
+  cwd so the audit trail never forks into a second, empty ledger.
 
 `repair-ledger.ts` re-hashes from the running `prev` and strips every `[TAMPERED]`
 marker, so a mid-chain tamper now repairs cleanly (the old script left the chain
@@ -73,17 +93,16 @@ broken at the following row).
 - **`npm audit` still reports 2 advisories** — both transitive PostCSS issues
   pulled in by `next` (1 high: arbitrary `.map` file read; 1 moderate: XSS in CSS
   stringify output). A clean fix requires `next` 16, a breaking major.
-- **No authentication on mutating endpoints** — `/api/decide`, the approvals, and
-  `PUT /api/mandate` are unauthenticated. This is a localhost-only demo; do not
-  deploy it publicly without adding auth.
-- **CSP `script-src` stays permissive** (`'self' 'unsafe-inline' 'unsafe-eval'`) —
-  Next ships inline RSC payloads and dev hydration needs `eval`. The real fix is
-  per-request nonce middleware; until that is wired, the other headers still apply.
-- **Unknown fields in `PUT /api/mandate` are silently ignored** (HTTP 200) — a
-  typo'd field name would be dropped while the caller believes it was applied.
+- **No account-level authentication on mutating endpoints** — `/api/decide`, the
+  approvals, and `PUT /api/mandate` are unauthenticated. Cross-site browser
+  requests are blocked by the middleware, and `AGENTGUARD_TOKEN` adds shared-secret
+  auth for scripted use — but a non-browser client that can reach the port can
+  still call them. Keep the demo on localhost or set a token.
+- **CSP `script-src` keeps `'unsafe-inline'`** — Next 15.5.27's bootstrap scripts
+  don't carry a middleware nonce (verified — see `TESTING-AND-SECURITY-REPORT.md`
+  §5). The real fix is nonce-aware bootstrap scripts in `next` 16.
 - **Velocity has a check-then-act race** under concurrent requests (not observed
   to breach the cap: `node:sqlite` writes are synchronous and WAL-serialized).
-- **Dependency/LLM failures surface as HTTP 400**, not 5xx — cosmetic.
 
 ## Maintenance scripts
 

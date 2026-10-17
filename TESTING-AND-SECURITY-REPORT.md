@@ -101,6 +101,34 @@ Homoglyph/hallucination grounding fails closed; error whitelist blocks internals
 
 ---
 
-## 4. Evidence artifacts
+## 5. Remediation (2026-10-17 — all findings addressed)
+
+Commit `af67ccf` + `5d0cb52` ("fix: close audit findings", "fix(api): malformed JSON bodies map to 400"). Post-fix verification: 93/93 unit tests, typecheck clean, 3× stable builds, black-box 51/51, system 11/11, browser 4/4 with zero console errors.
+
+| # | Finding | Fix | Verified by |
+|---|---|---|---|
+| H1 | No auth on mutating endpoints | `src/middleware.ts`: cross-site origin check (`Sec-Fetch-Site`) → 403; optional `AGENTGUARD_TOKEN` shared-secret (any mutating call must send `x-agentguard-token`) | cross-site POST → 403; curl passes through; token missing/wrong → 403, right → proceeds; GETs unaffected |
+| H2 | CSP `'unsafe-inline' + 'unsafe-eval'` | Middleware-owned CSP. **Prod drops `'unsafe-eval'`** and adds `object-src 'none'`. `'unsafe-inline'` must stay: Next 15.5.27 does NOT propagate a middleware nonce to its bootstrap scripts — verified (nonce-only CSP blanks every page; nonce never appears on the emitted `<script>` tags even with a hand-set request CSP) | browser QA: all pages hydrate, 0 console errors; prod CSP has no eval |
+| M3 | Ledger path = `process.cwd()` → silent second ledger | `AGENTGUARD_DATA_DIR` override in `decisions-singleton.ts` + npm run always anchors cwd to the project root | unit: env.test unaffected; documented in `.env.example` |
+| L4 | `__proto__` category keys accepted | `validate()` rejects `__proto__`/`constructor`/`prototype` keys | unit test + black-box (raw-JSON PUT → 400) |
+| L5 | No upper bound on mandate numbers | All mandate numbers capped at $10M (`MAX_MANDATE_CENTS`) | unit test + black-box (1e15 → 400) |
+| L6 | PayPal bodies in ledger reasons | `paypal.ts`/`llm.ts` throw status-only errors; full body → `console.error` only | unit test updated (ledger row must NOT contain the body) |
+| L7 | Approve consumed the approval before capture | `approve()` re-inserts the pending approval on capture failure — same id is retryable | new unit test (failed capture → still pending → retry → ALLOW, both rows audited, chain intact) |
+| I10 | Unknown mandate fields silently ignored | `validate()` rejects unknown top-level fields | unit test + black-box |
+| NEW | Malformed JSON regressed to 500 after the 400/500 split | `parseJson()` wrapper in `_errors.ts` → ValidationError → 400 | black-box (malformed body → 400 "request body must be valid JSON") |
+| NEW | Flaky builds: `Failed to collect page data` | Lazy singletons — routes no longer open the SQLite ledger at build time; plus `AGENTGUARD_DATA_DIR` | 3 consecutive clean builds after repeated failures |
+| I9 | Dependency failures as 400 | Routes: `ValidationError` → 400, everything else → 500 (generic body; ledger keeps the detail) | typecheck + suite; UI error handling unchanged |
+
+**Deliberately NOT "fixed" (documented, accepted):**
+- Velocity check-then-act race (I8) — theoretical under WAL-serialized writes; a queue/mutex is YAGNI for a single-operator demo.
+- Dashboard/UI auth for the human pages — the demo UI has no accounts to protect; the token option covers scripted use.
+- npm audit's 2 transitive PostCSS advisories — need next 16 (breaking major).
+- CSP `'unsafe-inline'` — see H2: blocked by a verified Next 15.5.27 limitation, not forgotten. `next` 16 or a nonce-aware bootstrap is the upgrade path.
+
+**Residual risk:** an attacker who can reach the machine's port directly (non-browser client on the LAN) can still call the mutating APIs unless `AGENTGUARD_TOKEN` is set. Keep the demo bound to localhost, or set a token.
+
+---
+
+## 6. Evidence artifacts
 - Isolated release instance logs, screenshots (`beta-allow.png`, `beta-approved.png`, `audit-broken.png`) and probe scripts: `%LOCALAPPDATA%\Temp\agentguard-qa\` and `%LOCALAPPDATA%\hermes\cache\scratch\agentguard-release\`
 - Demo ledger (real project): 10 rows, chain intentionally left broken at row 1 from the tamper demo — `npm run repair-ledger` (heal) or `npm run reset-demo` (wipe for a fresh demo).
