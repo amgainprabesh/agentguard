@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDecisions } from "@/lib/decisions-singleton";
 import { ValidationError } from "@/lib/mandate";
-import { errorMessage } from "../../_errors";
+import { errorMessage, parseJson } from "../../_errors";
 
 // demo-only endpoint behind the auditor view's "break the chain" button
 export async function POST(req: NextRequest) {
   try {
-    const { seq } = await req.json();
+    const { seq } = await parseJson(req);
     // a seq that isn't a positive integer that EXISTS is a silent lie: the
     // UPDATE matches nothing, we'd return ok:true, and the demo would look
     // broken on stage ("nothing happened"). Fail loudly instead.

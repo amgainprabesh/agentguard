@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMandateStore, getDecisions } from "@/lib/decisions-singleton";
 import { ValidationError } from "@/lib/mandate";
-import { errorMessage } from "../_errors";
+import { errorMessage, parseJson } from "../_errors";
 
 export async function GET() {
   return NextResponse.json(getMandateStore().get());
@@ -9,7 +9,7 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    const updated = getMandateStore().update(await req.json());
+    const updated = getMandateStore().update(await parseJson(req));
     getDecisions().setMandate(updated);
     return NextResponse.json(updated);
   } catch (e) {

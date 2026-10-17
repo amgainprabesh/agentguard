@@ -9,6 +9,8 @@
 // Pure string function (no next/server import) so it unit-tests with plain
 // node:test — the routes wrap it:
 // NextResponse.json({ error: errorMessage(e, "…") }, { status: 400 }).
+import { ValidationError } from "../../lib/validation.ts";
+
 const SAFE_PREFIXES = [
   "card.", // validateCard(): "card.number must be 13-19 digits", "card.expiry is in the past", …
   "mandate.", // MandateStore.validate(): "mandate.velocity_max_per_hour must be at least 1"
@@ -17,6 +19,17 @@ const SAFE_PREFIXES = [
 ];
 
 const MAX_ERROR_LEN = 200;
+
+// Malformed JSON is a CLIENT error (400) — req.json() throws SyntaxError, which
+// without this wrapper falls into the 500 bucket after the ValidationError split.
+// Returns `any` on purpose: req.json() was `any` too, and the routes destructure fields.
+export async function parseJson(req: Request): Promise<any> {
+  try {
+    return await req.json();
+  } catch {
+    throw new ValidationError("request body must be valid JSON");
+  }
+}
 
 export function errorMessage(e: unknown, fallback = "internal error"): string {
   const msg = e instanceof Error ? e.message : String(e);

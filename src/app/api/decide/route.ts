@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDecisions } from "@/lib/decisions-singleton";
 import { ValidationError } from "@/lib/mandate";
-import { errorMessage } from "../_errors";
+import { errorMessage, parseJson } from "../_errors";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await parseJson(req);
     const request = body?.request;
     if (typeof request !== "string" || !request.trim()) {
       return NextResponse.json({ error: "request must be a non-empty string" }, { status: 400 });

@@ -1,10 +1,10 @@
 import type { Mandate } from "./policy.ts";
 import { readFileSync, writeFileSync, existsSync, renameSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { ValidationError } from "./validation.ts";
 
-// Trust-boundary marker: routes map this to HTTP 400 (client error); anything
-// else is a dependency/infrastructure failure and maps to HTTP 500.
-export class ValidationError extends Error {}
+// re-exported so route handlers can import the marker class alongside mandate
+export { ValidationError };
 
 export const DEFAULT_MANDATE: Mandate = {
   monthly_budget_cents: 1500000,
