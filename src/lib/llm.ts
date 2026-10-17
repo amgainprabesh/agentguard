@@ -33,7 +33,10 @@ export async function chat(messages: { role: "system" | "user"; content: string 
       });
       // 429/5xx are transient on the free tier — retry once; 4xx is a real error.
       if (res.status === 429 || res.status >= 500) throw new Error(`LLM transient: ${res.status}`);
-      if (!res.ok) throw new Error(`LLM failed: ${res.status} ${await res.text()}`);
+      if (!res.ok) {
+        console.error(`LLM failed: ${res.status} ${await res.text()}`);
+        throw new Error(`LLM failed: ${res.status}`);
+      }
       const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
       const content = data?.choices?.[0]?.message?.content;
       // {choices: []} or a null content happens on rate-limits/model downtime —

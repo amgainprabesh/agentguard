@@ -1,4 +1,5 @@
 import { Ledger, type LedgerRecord } from "./ledger.ts";
+import { ValidationError } from "./mandate.ts";
 import { createOrderWithCard, capturePartial } from "./paypal.ts";
 import { evaluate, type Mandate, type MonthContext, type SpendIntent } from "./policy.ts";
 import { extractIntent } from "./intent.ts";
@@ -30,24 +31,24 @@ function luhnValid(digits: string): boolean {
 
 export function validateCard(input: unknown): CardInput {
   const c = input as Record<string, unknown> | null | undefined;
-  if (typeof c !== "object" || c === null) throw new Error("card must be an object");
+  if (typeof c !== "object" || c === null) throw new ValidationError("card must be an object");
   const digits = typeof c.number === "string" ? c.number.replace(/\D/g, "") : "";
-  if (digits.length < 13 || digits.length > 19) throw new Error("card.number must be 13-19 digits");
+  if (digits.length < 13 || digits.length > 19) throw new ValidationError("card.number must be 13-19 digits");
   // Luhn checksum: a typo'd test card (4111…1112) passes every shape check but
   // PayPal rejects it with an opaque INVALID_RESOURCE_ID — catch it here instead.
-  if (!luhnValid(digits)) throw new Error("card.number failed the Luhn checksum");
+  if (!luhnValid(digits)) throw new ValidationError("card.number failed the Luhn checksum");
   if (typeof c.expiry !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(c.expiry)) {
-    throw new Error("card.expiry must be YYYY-MM");
+    throw new ValidationError("card.expiry must be YYYY-MM");
   }
   // expired card: PayPal declines with an opaque error; reject with a clear message
   const [expYear, expMonth] = c.expiry.split("-").map(Number);
   const expiryEnd = new Date(Date.UTC(expYear, expMonth, 1)).getTime(); // first ms after the card's last valid month
-  if (expiryEnd <= Date.now()) throw new Error("card.expiry is in the past");
+  if (expiryEnd <= Date.now()) throw new ValidationError("card.expiry is in the past");
   if (typeof c.security_code !== "string" || !/^\d{3,4}$/.test(c.security_code)) {
-    throw new Error("card.security_code must be 3-4 digits");
+    throw new ValidationError("card.security_code must be 3-4 digits");
   }
   if (typeof c.name !== "string" || !c.name.trim() || c.name.length > 100) {
-    throw new Error("card.name must be a non-empty string (max 100 chars)");
+    throw new ValidationError("card.name must be a non-empty string (max 100 chars)");
   }
   return { number: digits, expiry: c.expiry, security_code: c.security_code, name: c.name.trim() };
 }
@@ -162,21 +163,28 @@ export class DecisionService {
       const inLedger = this.ledger.all().some(
         (r) => r.action === "ESCALATE" && r.reason.includes(`(approval ${approval_id})`),
       );
-      throw new Error(
+      throw new ValidationError(
         inLedger
           ? `approval ${approval_id} was parked but lost to a server restart — re-run the request`
           : `approval ${approval_id} not found`,
       );
     }
     validateCard(card);
+    // consume the approval ONLY after a successful capture: a failed capture
+    // re-inserts it, so the operator can retry the same id instead of losing it
     this.pending.delete(approval_id);
-    const capture_id = await this.capture(p.intent, card, "approved");
-    return { decision: "ALLOW", reasons: p.reasons, intent: p.intent, capture_id };
+    try {
+      const capture_id = await this.capture(p.intent, card, "approved");
+      return { decision: "ALLOW", reasons: p.reasons, intent: p.intent, capture_id };
+    } catch (e) {
+      this.pending.set(approval_id, p);
+      throw e;
+    }
   }
 
   async denyApproval(approval_id: string): Promise<void> {
     const p = this.pending.get(approval_id);
-    if (!p) throw new Error(`approval ${approval_id} not found`);
+    if (!p) throw new ValidationError(`approval ${approval_id} not found`);
     this.pending.delete(approval_id);
     this.ledger.append({
       action: "DENY",

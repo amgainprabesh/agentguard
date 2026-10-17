@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { decisions } from "@/lib/decisions-singleton";
+import { getDecisions } from "@/lib/decisions-singleton";
+import { ValidationError } from "@/lib/mandate";
 import { errorMessage } from "../../../_errors";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await req.json();
-    const d = await decisions.approve(id, body?.card);
+    const d = await getDecisions().approve(id, body?.card);
     return NextResponse.json(d);
   } catch (e) {
-    return NextResponse.json({ error: errorMessage(e, "approval failed") }, { status: 400 });
+    const status = e instanceof ValidationError ? 400 : 500;
+    return NextResponse.json({ error: errorMessage(e, "approval failed") }, { status });
   }
 }

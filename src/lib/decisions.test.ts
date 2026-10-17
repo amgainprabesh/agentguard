@@ -412,3 +412,32 @@ test("hasLedgerRow: only real seqs count (the tamper endpoint's guard)", () => {
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("approve() keeps the approval pending when the capture fails — retryable", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-d9-"));
+  const ledger = new Ledger(join(dir, "t.db"));
+  resetPayPalToken();
+  mockFetch({ ...intentOk, amount_cents: 50000 }, { captureStatus: 500 });
+
+  const svc = new DecisionService(ledger, mandate);
+  const esc = await svc.decide("buy $500 of snacks from acme.com", card);
+  await assert.rejects(() => svc.approve(esc.approval_id!, card), /capturePartial failed: 500/);
+  assert.equal(svc.listPending().length, 1, "a failed capture must NOT consume the approval");
+
+  // retry after the vendor recovers: same id, fresh capture
+  mock.reset();
+  resetPayPalToken();
+  mockFetch({ ...intentOk, amount_cents: 50000 });
+  const retried = await svc.approve(esc.approval_id!, card);
+  assert.equal(retried.decision, "ALLOW");
+  assert.equal(retried.capture_id, "CAP1");
+
+  const rows = ledger.all();
+  assert.ok(rows.some((r) => r.action === "DENY" && r.reason.includes("capture failed")), "the failed attempt is audited");
+  assert.ok(rows.some((r) => r.action === "ALLOW" && r.reason.includes("approved")), "the retry is audited");
+  assert.deepEqual(ledger.verifyChain(), { ok: true, brokenAt: null });
+
+  ledger.db.close();
+  rmSync(dir, { recursive: true, force: true });
+  mock.reset();
+});

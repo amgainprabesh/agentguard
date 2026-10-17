@@ -27,7 +27,12 @@ async function getToken(): Promise<string> {
     body: "grant_type=client_credentials",
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`PayPal token failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    // status only in the error — the body goes to the server log, never into
+    // the ledger or back toward the client
+    console.error(`PayPal token failed: ${res.status} ${await res.text()}`);
+    throw new Error(`PayPal token failed: ${res.status}`);
+  }
   const data = (await res.json()) as { access_token: string; expires_in: number };
   token = { value: data.access_token, expires_at: Date.now() + data.expires_in * 1000 };
   return token.value;
@@ -77,7 +82,12 @@ export async function createOrderWithCard(input: {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     }),
   });
-  if (!res.ok) throw new Error(`PayPal createOrderWithCard failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    // status only in the error — the body (unbounded JSON with debug details)
+    // goes to the server log, never into the ledger row or the API error
+    console.error(`PayPal createOrderWithCard failed: ${res.status} ${await res.text()}`);
+    throw new Error(`PayPal createOrderWithCard failed: ${res.status}`);
+  }
   const data = (await res.json()) as {
     id: string;
     status: string;
@@ -101,6 +111,9 @@ export async function capturePartial(
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`PayPal capturePartial failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) {
+    console.error(`PayPal capturePartial failed: ${res.status} ${await res.text()}`);
+    throw new Error(`PayPal capturePartial failed: ${res.status}`);
+  }
   return (await res.json()) as { id: string; status: string };
 }

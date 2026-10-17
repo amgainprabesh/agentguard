@@ -505,10 +505,10 @@ test("capture failure reason is capped so the ledger row stays one line", async 
   await assert.rejects(() => svc.decide("buy $42 of snacks from acme.com", card), /capturePartial failed: 500/);
 
   const reason = ledger.all()[0].reason;
-  const cap = "capture failed for acme.com: ".length + 300;
   assert.ok(reason.startsWith("capture failed for acme.com:"));
-  assert.ok(reason.length <= cap, `reason capped (${reason.length} <= ${cap})`);
-  assert.ok(reason.length > 300, "the leading error text is kept, not emptied");
+  // the response body must NOT reach the ledger — status only (goes to server logs instead)
+  assert.ok(!reason.includes("xxxxx"), "no vendor response body in the ledger row");
+  assert.ok(reason.length < 100, `reason is a short status-only line (${reason.length})`);
 
   ledger.db.close();
   rmSync(dir, { recursive: true, force: true });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { decisions } from "@/lib/decisions-singleton";
+import { getDecisions } from "@/lib/decisions-singleton";
 
 export async function GET() {
-  return NextResponse.json({ records: decisions.ledgerRecords(), chain: decisions.verifyChain() });
+  const d = getDecisions();
+  return NextResponse.json({ records: d.ledgerRecords(), chain: d.verifyChain() });
 }

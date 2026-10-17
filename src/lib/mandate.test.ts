@@ -67,3 +67,40 @@ test("update is atomic: no .tmp file left behind, no half-written mandate", () =
   assert.equal(JSON.parse(raw).velocity_max_per_hour, 3);
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("update rejects prototype-pollution keys in category_limits_cents", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-m7-"));
+  const store = new MandateStore(join(dir, "mandate.json"));
+  for (const key of ["__proto__", "constructor", "prototype"]) {
+    assert.throws(
+      () => store.update({ ...DEFAULT_MANDATE, category_limits_cents: { [key]: 5000 } }),
+      /forbidden key/,
+      `${key} must be rejected at the trust boundary`,
+    );
+  }
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("update rejects unknown top-level fields — a typo must not save as if applied", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-m8-"));
+  const store = new MandateStore(join(dir, "mandate.json"));
+  assert.throws(
+    () => store.update({ ...DEFAULT_MANDATE, monthly_budget_centsx: 100 } as never),
+    /unknown field/,
+  );
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("update rejects absurd mandate numbers — no trillions", () => {
+  const dir = mkdtempSync(join(tmpdir(), "ag-m9-"));
+  const store = new MandateStore(join(dir, "mandate.json"));
+  assert.throws(
+    () => store.update({ ...DEFAULT_MANDATE, monthly_budget_cents: 1e15 }),
+    /too large/,
+  );
+  assert.throws(
+    () => store.update({ ...DEFAULT_MANDATE, per_txn_cap_cents: 1e15 }),
+    /too large/,
+  );
+  rmSync(dir, { recursive: true, force: true });
+});

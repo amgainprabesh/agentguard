@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { decisions } from "@/lib/decisions-singleton";
+import { getDecisions } from "@/lib/decisions-singleton";
 
 export async function GET() {
-  return NextResponse.json(decisions.listPending());
+  return NextResponse.json(getDecisions().listPending());
 }
