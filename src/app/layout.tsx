@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+// Per-request CSP nonce (src/middleware.ts) only reaches the framework's inline
+// scripts on DYNAMIC renders — a prerendered page would ship build-time HTML
+// whose inline scripts the request-time nonce blocks (blank page). Nothing here
+// benefits from prerendering anyway: every view fetches its data client-side.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "AgentGuard — spend policy for AI purchasing agents",
   description:
