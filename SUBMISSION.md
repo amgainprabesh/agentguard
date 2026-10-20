@@ -61,17 +61,24 @@ demonstrate this live.
   critical RCE advisory cluster.
 
 ## Testing
-89 unit/integration tests (node:test) covering: the hash chain (genesis,
+93 unit/integration tests (node:test) covering: the hash chain (genesis,
 tamper detection, category migration, category-in-hash integrity), mandate
-validation, the LLM intent extraction (malformed output, thinking-wrapped
+validation (strict: unknown fields and prototype-pollution keys rejected,
+numbers capped), the LLM intent extraction (malformed output, thinking-wrapped
 JSON, clamped amounts, transient retries, homoglyph/hallucinated-vendor
 rejection), all policy rules incl. inclusive boundaries, the full
-ALLOW/DENY/ESCALATE/approve paths, capture failure handling, double-approve
-protection, lost-escalation-on-restart detection, month/velocity aggregation,
-case-insensitive vendor/category matching, the card validator at the trust
-boundary (Luhn, expiry), the tamper endpoint's seq guard (400/404, no silent
-success), and the API error-message whitelist (vendor/LLM error bodies never
-leak). Plus a
+ALLOW/DENY/ESCALATE/approve paths, capture failure handling (retryable
+approvals), double-approve protection, lost-escalation-on-restart detection,
+month/velocity aggregation, case-insensitive vendor/category matching, the
+card validator at the trust boundary (Luhn, expiry), the tamper endpoint's
+seq guard (400/404, no silent success), and the API error-message whitelist
+(vendor/LLM error bodies never leak). On top of the suite, the project had a
+full test-and-security pass: 51 black-box HTTP probes (type confusion,
+card-boundary attacks, tamper abuse, method probing — every boundary held),
+system/release testing on the production build (tamper → repair → audit loop,
+restart durability), real-browser alpha/beta runs (real OpenRouter extraction +
+real PayPal sandbox captures), and a code review of every source file — findings
+and remediation in `TESTING-AND-SECURITY-REPORT.md`. Plus a
 live end-to-end check (`npm run live-decisions`) that runs the whole policy path
 against the real PayPal sandbox — DENY (PayPal never touched) → ALLOW (real
 capture) → ESCALATE → approve (real capture) → chain verified.
@@ -123,8 +130,10 @@ capture) → ESCALATE → approve (real capture) → chain verified.
   PayPal events into the ledger — the chain becomes externally anchored.
 - Vault payment-method tokens as the agent wallet (no raw card in the request).
 - Configurable rule DSL beyond the current six rule types.
-- Strict CSP via nonce middleware (script-src is permissive today) and
-  authentication on the mutating endpoints before any public deployment.
+- Strict CSP via per-request nonce and full account-level authentication on the
+  mutating endpoints before any public deployment. (Shipped already: CSRF origin
+  checking, an optional shared-secret token, and a hardened mandate validator —
+  the nonce itself is blocked by a verified next@15.5.27 limitation.)
 
 ## Tools list
 
@@ -154,5 +163,5 @@ hot path.)
 ### Other tools
 - Next.js 15 (App Router) + TypeScript 5.9
 - node:sqlite (DatabaseSync) — hash-chained audit ledger
-- node:test — 89 tests
+- node:test — 93 tests
 - node:crypto (SHA-256) — hash chain
