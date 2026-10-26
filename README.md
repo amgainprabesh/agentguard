@@ -4,6 +4,8 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
 
 ## Run it (2 minutes)
 
+Prerequisite: **Node.js 24 or newer** (the project uses built-in SQLite and native TypeScript execution).
+
 1. `npm install`
 2. Copy `.env.example` to `.env.local` and fill in your keys:
    - **PayPal sandbox**: create a sandbox app at
@@ -11,7 +13,7 @@ Spend-policy control plane for AI purchasing agents. Policy is code, not prompt.
      → *Create App* → copy **Client ID** and **Secret** into `PAYPAL_CLIENT_ID` / `PAYPAL_SECRET`.
    - **LLM**: an OpenRouter API key from [openrouter.ai/keys](https://openrouter.ai/keys).
 3. `npm run dev` → http://localhost:3000
-4. `npm test` for the test suite (89 tests, no credentials needed — everything external is mocked).
+4. `npm test` for the test suite (93 tests, no credentials needed — everything external is mocked).
 
 ## Verify against the live sandbox
 
@@ -150,14 +152,14 @@ Four views, all server-rendered by the routes above:
 4. **Ledger** — every decision appends to a hash-chained SQLite ledger
    (`data/agentguard.db`, git-ignored). `verifyChain()` proves tampering.
 
-Prompt injection cannot change the rules: the policy is code, and a poisoned request
-can at worst produce a DENY.
+Model output cannot rewrite the policy rules. It can still misinterpret a request;
+deterministic checks do not make intent extraction immune to prompt injection.
 
 ## Status
 
 Sprints 0–3 complete: hash-chained audit ledger, policy engine (six rules, now aggregating real month/velocity spend from the ledger), intent extraction, ALLOW/DENY/ESCALATE decisions — live-verified against the PayPal sandbox. UI: mandate editor, decision dashboard, auditor chain view with a live tamper demo. Security hardening landed since: input-validated tamper endpoint, whitelisted API error messages, security headers, `next` bumped to 15.5.27, repair-ledger bug fixed (see [Security](#security)).
 
-89 tests, `npm run typecheck` and `npm run build` clean.
+93 tests; `npm test` and `npm run typecheck` re-verified for submission.
 
 ## Notes for demo day
 

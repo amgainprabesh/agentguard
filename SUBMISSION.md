@@ -34,9 +34,9 @@ SHA-256 hash-chained SQLite ledger. Tamper with one row and the chain visibly
 breaks at exactly that link. The auditor view shows the chain row by row, with
 a live "break the chain" demo.
 
-**The line that wins the room: policy is code, not prompt.** A prompt-injection
-attack can at worst produce a DENY — it cannot rewrite the rules, and we
-demonstrate this live.
+**Policy is code, not prompt.** Model output cannot rewrite the rules, but intent
+extraction can still misinterpret a request. The prototype does not claim immunity
+to prompt injection.
 
 ## How we built it
 - **Next.js 15** (App Router, TypeScript) — API routes + server-rendered UI.
